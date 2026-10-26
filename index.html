@@ -51,7 +51,7 @@
     .level-pill {
       background: linear-gradient(135deg, #0284c7, #2563eb);
     }
-    /* Custom Thin Scrollbar for Modals */
+    /* Custom Thin Scrollbar for Modals & Level Track */
     .custom-scrollbar::-webkit-scrollbar {
       width: 6px;
     }
@@ -66,6 +66,33 @@
     .custom-scrollbar::-webkit-scrollbar-thumb:hover {
       background: rgba(6, 182, 212, 0.75);
     }
+
+    /* Map Grid Background Pattern */
+    .map-grid-bg {
+      background-color: rgba(9, 15, 29, 0.75);
+      background-image: 
+        radial-gradient(rgba(56, 189, 248, 0.12) 1px, transparent 1px),
+        linear-gradient(to right, rgba(30, 41, 59, 0.35) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(30, 41, 59, 0.35) 1px, transparent 1px);
+      background-size: 20px 20px, 40px 40px, 40px 40px;
+    }
+
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(6, 182, 212, 0.7); }
+      70% { transform: scale(1); box-shadow: 0 0 0 12px rgba(6, 182, 212, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(6, 182, 212, 0); }
+    }
+    .active-node-pulse {
+      animation: pulse-ring 2s infinite;
+    }
+
+    @keyframes float-truck {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-4px); }
+    }
+    .truck-float {
+      animation: float-truck 2s ease-in-out infinite;
+    }
   </style>
 </head>
 <body class="relative w-screen h-screen overflow-hidden text-slate-100">
@@ -73,7 +100,7 @@
   <!-- 3D Viewport Container -->
   <div id="game-canvas-container" class="absolute inset-0 z-0"></div>
 
-  <!-- HUD: Top Bar & Game Objectives (Rapi, tidak menutupi tengah layar) -->
+  <!-- HUD: Top Bar & Game Objectives -->
   <header class="absolute top-0 left-0 right-0 z-20 flex flex-wrap items-start justify-between p-3 md:p-5 pointer-events-none gap-3">
     <!-- Left: Level Badge, Package Delivery Timer, Quota Target, Cargo Stack -->
     <div class="pointer-events-auto flex items-center gap-2.5 flex-wrap">
@@ -113,7 +140,7 @@
         <div>
           <span class="text-[9px] uppercase font-bold text-slate-400 block tracking-wider leading-none">Kuota Kirim</span>
           <span class="text-base md:text-lg font-black text-cyan-300 font-mono">
-            <span id="quota-delivered">0</span><span class="text-xs text-slate-400 font-normal"> / </span><span id="quota-target">4</span>
+            <span id="quota-delivered">0</span><span class="text-xs text-slate-400 font-normal"> / </span><span id="quota-target">2</span>
           </span>
         </div>
       </div>
@@ -149,6 +176,7 @@
         <div class="text-right">
           <span class="text-[9px] uppercase font-bold text-slate-400 block leading-none">Gaji Terkumpul</span>
           <span id="hud-cash" class="text-base md:text-lg font-black text-emerald-400 font-mono">0</span>
+          <span id="hud-level-earned" class="text-[10px] font-bold text-emerald-300 font-mono block leading-none mt-0.5">Lvl: +Rp 0</span>
         </div>
       </div>
 
@@ -166,15 +194,15 @@
     </div>
   </header>
 
-  <!-- Toast Notification Pill (Muncul di bawah Top Bar saat sukses) -->
+  <!-- Toast Notification Pill -->
   <div id="toast-pill" class="absolute top-28 left-1/2 -translate-x-1/2 z-30 pointer-events-none transition-all duration-300 opacity-0 transform -translate-y-3 scale-95">
-    <div class="glass-card w-fit px-5 py-2 rounded-full border-emerald-400/60 text-emerald-300 text-xs md:text-sm font-bold shadow-xl flex items-center gap-2">
-      <i class="fa-solid fa-circle-check text-emerald-400"></i>
+    <div id="toast-box" class="glass-card w-fit px-5 py-2.5 rounded-full border border-emerald-400/60 bg-slate-900/95 text-emerald-300 text-xs md:text-sm font-bold shadow-xl flex items-center gap-2.5 transition-all">
+      <i id="toast-icon" class="fa-solid fa-circle-check text-emerald-400 text-base"></i>
       <span id="toast-text">Pengantaran Berhasil!</span>
     </div>
   </div>
 
-  <!-- Interactive Action & Progress Floating Overlay (Muncul saat mobil masuk ke zona Gudang / Rumah) -->
+  <!-- Interactive Action & Progress Floating Overlay -->
   <div id="interaction-overlay" class="absolute bottom-24 left-1/2 -translate-x-1/2 z-30 pointer-events-none transition-all duration-200 opacity-0 transform translate-y-4 scale-95">
     <div class="glass-card p-3 pr-5 rounded-2xl border-cyan-400/70 shadow-2xl flex items-center gap-3.5 bg-slate-900/95 pointer-events-auto cursor-pointer" id="interaction-card-btn">
       <div class="relative w-12 h-12 flex items-center justify-center shrink-0">
@@ -199,7 +227,7 @@
     </div>
   </div>
 
-  <!-- Bottom HUD Layer: Surface Speed Indicator (Kiri) & Controls/Action (Kanan) -->
+  <!-- Bottom HUD Layer -->
   <div class="absolute bottom-5 left-5 right-5 z-20 flex justify-between items-end pointer-events-none">
     <!-- Left: Surface Speed Badge & Keyboard Hint -->
     <div class="flex flex-col gap-2 items-start">
@@ -208,8 +236,11 @@
           <i id="surface-icon" class="fa-solid fa-road text-xs"></i>
         </div>
         <div>
-          <span class="text-[9px] uppercase font-bold text-slate-400 block leading-none">Permukaan Jalan</span>
-          <span id="surface-label" class="text-xs font-black text-cyan-400">JALAN ASPAL (100% SPEED)</span>
+          <div class="flex items-center gap-1.5 leading-none mb-1">
+            <span class="text-[9px] uppercase font-bold text-slate-400">Speedometer:</span>
+            <span id="hud-speed-kmh" class="text-xs font-black text-emerald-400 font-mono">0 km/h</span>
+          </div>
+          <span id="surface-label" class="text-xs font-black text-cyan-400 block leading-none">JALAN ASPAL (MAKS 60 KM/H)</span>
         </div>
       </div>
 
@@ -232,59 +263,156 @@
     </button>
   </div>
 
-  <!-- START / LEVEL TRANSITION / GAME OVER MODAL -->
-  <div id="modal-screen" class="fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-    <div class="glass-card w-full max-w-lg max-h-[92vh] overflow-y-auto custom-scrollbar rounded-3xl p-5 sm:p-6 md:p-8 text-center relative border-cyan-500/40 shadow-2xl">
-      <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-cyan-600 to-indigo-600 mx-auto flex items-center justify-center text-white text-2xl shadow-xl shadow-cyan-500/30 mb-4">
-        <i id="modal-header-icon" class="fa-solid fa-truck-fast"></i>
-      </div>
+  <!-- START / LEVEL TRANSITION MODAL + LEFT LEVEL TRACK MAP PANEL -->
+  <div id="modal-screen" class="fixed inset-0 z-40 flex items-center justify-center p-3 sm:p-5 bg-black/80 backdrop-blur-md">
+    <div class="w-full max-w-5xl max-h-[94vh] flex flex-col lg:flex-row items-stretch justify-center gap-4 lg:gap-5">
 
-      <h1 id="modal-title" class="text-2xl md:text-3xl font-black text-white tracking-tight mb-1">WAREHOUSE EXPRESS 3D</h1>
-      <p id="modal-subtitle" class="text-slate-300 text-xs md:text-sm mb-6">
-        Antarkan paket dari Gudang ke warga di pinggir jalan! Patuhi jalur Aspal (100%), Beton (80%), dan Tanah (60%).
-      </p>
+      <!-- BAGIAN KIRI DI LUAR MODAL UTAMA: MAPS LEVEL TRACK -->
+      <aside id="level-track-panel" class="glass-card w-full lg:w-[350px] xl:w-[370px] max-h-[38vh] lg:max-h-[88vh] rounded-3xl p-4 sm:p-5 flex flex-col border-cyan-500/40 shadow-2xl shrink-0 relative overflow-hidden order-2 lg:order-1">
+        <!-- Header Peta Jalur -->
+        <div class="flex items-center justify-between pb-3 border-b border-slate-800/90 shrink-0">
+          <div class="flex items-center gap-2.5">
+            <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-white text-sm shadow-lg shadow-cyan-500/30">
+              <i class="fa-solid fa-map-location-dot"></i>
+            </div>
+            <div class="text-left">
+              <h2 class="text-xs sm:text-sm font-black text-white tracking-wide uppercase flex items-center gap-1.5">
+                <span>Peta Jalur Ekspedisi</span>
+              </h2>
+              <p class="text-[10px] text-slate-400">Klik node terbuka untuk pindah level</p>
+            </div>
+          </div>
+          <div class="text-right">
+            <span id="track-highest-badge" class="px-2.5 py-1 rounded-full text-[10px] font-black bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-mono">
+              LVL 1
+            </span>
+          </div>
+        </div>
 
-      <!-- Stats Grid Result -->
-      <div class="grid grid-cols-2 gap-3 mb-6 text-left">
-        <div class="p-3 rounded-2xl bg-slate-900/80 border border-slate-800">
-          <span class="text-[10px] uppercase font-bold text-slate-400 block">Distrik Aktif</span>
-          <span id="stat-level-text" class="text-lg font-black text-cyan-400 font-mono">Level 1</span>
-          <span id="stat-quota-badge" class="text-[11px] text-emerald-400 block font-semibold">Target: 4 Paket</span>
-        </div>
-        <div class="p-3 rounded-2xl bg-slate-900/80 border border-slate-800">
-          <span class="text-[10px] uppercase font-bold text-slate-400 block">Jaringan Rute</span>
-          <span id="stat-theme" class="text-sm font-black text-cyan-300 font-mono">ASPAL & TANAH</span>
-          <span class="text-[11px] text-slate-400 block">100% Jalan Terhubung</span>
-        </div>
-        <div class="p-3 rounded-2xl bg-slate-900/80 border border-slate-800">
-          <span class="text-[10px] uppercase font-bold text-slate-400 block">Total Gaji Kurir</span>
-          <span id="stat-salary" class="text-lg font-black text-emerald-400 font-mono">Rp 0</span>
-        </div>
-        <div class="p-3 rounded-2xl bg-slate-900/80 border border-slate-800">
-          <span class="text-[10px] uppercase font-bold text-slate-400 block">Rating Layanan</span>
-          <div class="flex items-center gap-1.5 mt-0.5">
-            <span id="stat-rating" class="text-lg font-black text-amber-400 font-mono">5.0</span>
-            <div class="text-amber-400 text-xs flex gap-0.5">
-              <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i>
+        <!-- Ringkasan Progres Bintang & Distrik -->
+        <div class="grid grid-cols-3 gap-2 my-2.5 shrink-0">
+          <div class="px-2.5 py-1.5 rounded-xl bg-slate-900/90 border border-slate-800/90 flex items-center gap-2">
+            <i class="fa-solid fa-flag-checkered text-emerald-400 text-xs"></i>
+            <div class="text-left">
+              <span class="text-[8px] uppercase font-bold text-slate-400 block leading-none">Tuntas</span>
+              <span id="track-completed-count" class="text-xs font-black text-emerald-400 font-mono">0 Lvl</span>
+            </div>
+          </div>
+          <div class="px-2.5 py-1.5 rounded-xl bg-slate-900/90 border border-slate-800/90 flex items-center gap-2">
+            <i class="fa-solid fa-star text-amber-400 text-xs"></i>
+            <div class="text-left">
+              <span class="text-[8px] uppercase font-bold text-slate-400 block leading-none">Bintang</span>
+              <span id="track-total-stars" class="text-xs font-black text-amber-400 font-mono">0 ★</span>
+            </div>
+          </div>
+          <div class="px-2.5 py-1.5 rounded-xl bg-slate-900/90 border border-slate-800/90 flex items-center gap-2">
+            <i class="fa-solid fa-truck-fast text-cyan-400 text-xs"></i>
+            <div class="text-left">
+              <span class="text-[8px] uppercase font-bold text-slate-400 block leading-none">Posisi</span>
+              <span id="track-active-pos" class="text-xs font-black text-cyan-300 font-mono">Lvl 1</span>
             </div>
           </div>
         </div>
+
+        <!-- Viewport Scrollable Peta Jalur (Winding Road) -->
+        <div id="level-track-scroll" class="flex-1 min-h-0 overflow-y-auto custom-scrollbar rounded-2xl map-grid-bg border border-slate-800/90 relative p-3">
+          <div id="level-track-canvas" class="relative w-full mx-auto">
+            <!-- SVG Road Connectors & Level Nodes di-render otomatis via JS renderLevelTrackMap() -->
+          </div>
+        </div>
+
+        <!-- Footer Legend & Jump to Active Button -->
+        <div class="pt-2.5 mt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400 shrink-0">
+          <div class="flex items-center gap-2.5">
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span> Selesai</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-cyan-400 inline-block animate-ping"></span> Aktif</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-slate-600 inline-block"></span> Terkunci</span>
+          </div>
+          <button id="btn-center-track" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 font-bold text-[10px] flex items-center gap-1 transition-all cursor-pointer border border-cyan-500/30" title="Fokus ke level aktif">
+            <i class="fa-solid fa-location-crosshairs"></i>
+            <span>Lokasi Kurir</span>
+          </button>
+        </div>
+      </aside>
+
+      <!-- BAGIAN KANAN: MODAL UTAMA WAREHOUSE EXPRESS 3D -->
+      <div class="glass-card w-full max-w-lg max-h-[54vh] lg:max-h-[88vh] overflow-y-auto custom-scrollbar rounded-3xl p-5 sm:p-6 md:p-8 text-center relative border-cyan-500/40 shadow-2xl flex flex-col justify-between order-1 lg:order-2">
+        <div>
+          <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-cyan-600 to-indigo-600 mx-auto flex items-center justify-center text-white text-2xl shadow-xl shadow-cyan-500/30 mb-4">
+            <i id="modal-header-icon" class="fa-solid fa-truck-fast"></i>
+          </div>
+
+          <h1 id="modal-title" class="text-2xl md:text-3xl font-black text-white tracking-tight mb-1">WAREHOUSE EXPRESS 3D</h1>
+          <p id="modal-subtitle" class="text-slate-300 text-xs md:text-sm mb-6">
+            Antarkan paket dari Gudang ke warga di pinggir jalan! Gunakan jalur Aspal, Beton, atau Tanah untuk laju optimal.
+          </p>
+
+          <!-- Gaji Didapat di Level Ini Banner (Hanya muncul saat level selesai) -->
+          <div id="modal-level-earnings-card" class="hidden mb-4 p-4 rounded-2xl bg-gradient-to-r from-emerald-950/90 via-slate-900/90 to-teal-950/90 border border-emerald-500/50 shadow-xl flex items-center justify-between text-left">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/50 flex items-center justify-center text-emerald-400 text-xl shadow-lg shadow-emerald-950/40">
+                <i class="fa-solid fa-hand-holding-dollar"></i>
+              </div>
+              <div>
+                <span id="stat-level-earnings-title" class="text-[10px] uppercase font-black text-emerald-300 tracking-wider block">Gaji Didapat Level Ini</span>
+                <span id="stat-level-earnings" class="text-2xl font-black text-emerald-400 font-mono">+Rp 0</span>
+              </div>
+            </div>
+            <div class="text-right text-[11px] font-mono">
+              <span class="text-slate-400 block text-[9px] uppercase font-bold tracking-wider">Rincian Shift</span>
+              <span id="stat-level-gross" class="text-emerald-300 font-bold block">+Rp 0 (Tarif)</span>
+              <span id="stat-level-penalty" class="text-emerald-400 font-bold block">Rp 0 (Tanpa Denda 🌟)</span>
+            </div>
+          </div>
+
+          <!-- Stats Grid Result -->
+          <div class="grid grid-cols-2 gap-3 mb-6 text-left">
+            <div class="p-3 rounded-2xl bg-slate-900/80 border border-slate-800">
+              <span class="text-[10px] uppercase font-bold text-slate-400 block">Distrik Aktif</span>
+              <span id="stat-level-text" class="text-lg font-black text-cyan-400 font-mono">Level 1</span>
+              <span id="stat-quota-badge" class="text-[11px] text-emerald-400 block font-semibold">Target: 2 Paket</span>
+            </div>
+            <div class="p-3 rounded-2xl bg-slate-900/80 border border-slate-800">
+              <span class="text-[10px] uppercase font-bold text-slate-400 block">Jaringan Rute</span>
+              <span id="stat-theme" class="text-sm font-black text-cyan-300 font-mono">ASPAL & TANAH</span>
+              <span class="text-[11px] text-slate-400 block">100% Jalan Terhubung</span>
+            </div>
+            <div class="p-3 rounded-2xl bg-slate-900/80 border border-slate-800">
+              <span class="text-[10px] uppercase font-bold text-slate-400 block">Total Saldo Kas Kurir</span>
+              <span id="stat-salary" class="text-lg font-black text-emerald-400 font-mono">Rp 0</span>
+              <span class="text-[10px] text-slate-400 block">Akumulasi Semua Level</span>
+            </div>
+            <div class="p-3 rounded-2xl bg-slate-900/80 border border-slate-800">
+              <span class="text-[10px] uppercase font-bold text-slate-400 block">Rating Layanan</span>
+              <div class="flex items-center gap-1.5 mt-0.5">
+                <span id="stat-rating" class="text-lg font-black text-amber-400 font-mono">5.0</span>
+                <div id="stat-rating-stars" class="text-amber-400 text-xs flex gap-0.5">
+                  <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i>
+                </div>
+              </div>
+              <span id="stat-rating-feedback" class="text-[10px] text-slate-400 block">Layanan Prima</span>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <!-- Action Button -->
+          <button id="btn-start-game" class="w-full py-4 rounded-2xl bg-gradient-to-r from-cyan-500 via-blue-600 to-emerald-500 text-white font-extrabold text-sm md:text-base tracking-wide shadow-xl hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-3 cursor-pointer">
+            <i class="fa-solid fa-play"></i>
+            <span id="btn-start-label">MULAI SHIFT LEVEL 1</span><span class="text-[10px] font-mono font-black px-2 py-0.5 rounded bg-black/30 text-white border border-white/30 ml-2">ENTER</span>
+          </button>
+
+          <button id="btn-open-shop-start" class="w-full mt-2.5 py-3 rounded-2xl glass-card bg-slate-900/90 hover:bg-slate-800/90 border border-cyan-500/40 text-cyan-300 font-bold text-xs md:text-sm tracking-wide shadow-lg active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 cursor-pointer">
+            <i class="fa-solid fa-store text-cyan-400"></i>
+            <span>DEALER TOKO MOBIL & GUDANG ASET</span>
+          </button>
+        </div>
       </div>
 
-      <!-- Action Button -->
-      <button id="btn-start-game" class="w-full py-4 rounded-2xl bg-gradient-to-r from-cyan-500 via-blue-600 to-emerald-500 text-white font-extrabold text-sm md:text-base tracking-wide shadow-xl hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-3 cursor-pointer">
-        <i class="fa-solid fa-play"></i>
-        <span id="btn-start-label">MULAI SHIFT LEVEL 1</span><span class="text-[10px] font-mono font-black px-2 py-0.5 rounded bg-black/30 text-white border border-white/30 ml-2">ENTER</span>
-      </button>
-
-      <button id="btn-open-shop-start" class="w-full mt-2.5 py-3 rounded-2xl glass-card bg-slate-900/90 hover:bg-slate-800/90 border border-cyan-500/40 text-cyan-300 font-bold text-xs md:text-sm tracking-wide shadow-lg active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 cursor-pointer">
-        <i class="fa-solid fa-store text-cyan-400"></i>
-        <span>DEALER TOKO MOBIL & GUDANG ASET</span>
-      </button>
     </div>
   </div>
 
-    <!-- PAUSE MENU MODAL -->
+  <!-- PAUSE MENU MODAL -->
   <div id="pause-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
     <div class="glass-card w-full max-w-md max-h-[92vh] overflow-y-auto custom-scrollbar rounded-3xl p-5 sm:p-6 md:p-8 text-center relative border-amber-500/50 shadow-2xl">
       <!-- Icon Header -->
@@ -305,13 +433,17 @@
         </div>
         <div>
           <span class="text-[9px] uppercase font-bold text-slate-400 block">Kemajuan Kuota</span>
-          <span id="pause-quota-info" class="text-xs sm:text-sm font-black text-emerald-400 font-mono">0 / 4 Paket</span>
+          <span id="pause-quota-info" class="text-xs sm:text-sm font-black text-emerald-400 font-mono">0 / 2 Paket</span>
         </div>
         <div>
-          <span class="text-[9px] uppercase font-bold text-slate-400 block">Gaji Kurir Saat Ini</span>
-          <span id="pause-salary-info" class="text-xs sm:text-sm font-black text-emerald-400 font-mono">Rp 0</span>
+          <span class="text-[9px] uppercase font-bold text-slate-400 block">Gaji Level Ini</span>
+          <span id="pause-level-salary" class="text-xs sm:text-sm font-black text-emerald-400 font-mono">+Rp 0</span>
         </div>
         <div>
+          <span class="text-[9px] uppercase font-bold text-slate-400 block">Total Saldo Kas</span>
+          <span id="pause-salary-info" class="text-xs sm:text-sm font-black text-cyan-300 font-mono">Rp 0</span>
+        </div>
+        <div class="col-span-2">
           <span class="text-[9px] uppercase font-bold text-slate-400 block">Status Paket</span>
           <span id="pause-package-info" class="text-xs sm:text-sm font-black text-amber-400 font-mono">Siap Antar</span>
         </div>
@@ -384,7 +516,7 @@
         </div>
       </div>
 
-      <!-- Vehicle Catalog Grid (Fully flexible scroll container with custom scrollbar & bottom padding) -->
+      <!-- Vehicle Catalog Grid -->
       <div id="shop-vehicles-grid" class="flex-1 min-h-0 overflow-y-auto custom-scrollbar my-3 pr-1 sm:pr-2 grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-3.5 pb-2">
         <!-- Rendered by renderShopCatalog() -->
       </div>
@@ -560,17 +692,93 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
           setTimeout(() => this.playBeep(f, 0.16, 'triangle', 0.14), i * 65);
         });
       }
+
+      playCrash() {
+        this.init();
+        if (!this.ready || !this.ctx) return;
+        try {
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(140, now);
+          osc.frequency.exponentialRampToValueAtTime(32, now + 0.32);
+          gain.gain.setValueAtTime(0.28, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.33);
+        } catch (e) {}
+      }
+
+      playHorn() {
+        this.init();
+        if (!this.ready || !this.ctx) return;
+        try {
+          const now = this.ctx.currentTime;
+          [440, 554].forEach(f => {
+            const osc = this.ctx.createOscillator();
+            const g = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(f, now);
+            g.gain.setValueAtTime(0.12, now);
+            g.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+            osc.connect(g);
+            g.connect(this.ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.39);
+          });
+        } catch (e) {}
+      }
+
+      playAnimalAlert() {
+        this.init();
+        if (!this.ready || !this.ctx) return;
+        try {
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const g = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(700, now);
+          osc.frequency.exponentialRampToValueAtTime(950, now + 0.16);
+          g.gain.setValueAtTime(0.16, now);
+          g.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+          osc.connect(g);
+          g.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.19);
+        } catch (e) {}
+      }
+
+      playEmergencySiren() {
+        this.init();
+        if (!this.ready || !this.ctx) return;
+        try {
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const g = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(620, now);
+          osc.frequency.linearRampToValueAtTime(880, now + 0.22);
+          osc.frequency.linearRampToValueAtTime(620, now + 0.44);
+          g.gain.setValueAtTime(0.09, now);
+          g.gain.exponentialRampToValueAtTime(0.001, now + 0.48);
+          osc.connect(g);
+          g.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.49);
+        } catch (e) {}
+      }
     }
 
     const sound = new SoundEngine();
 
-        /* =========================================================================
+    /* =========================================================================
        2. GENERATOR MAP PROSEDURAL & LEVEL INFINITE (RANDOM MAP PER LEVEL)
        ========================================================================= */
-    // Titik Spawn Mobil di (x: 0, z: -2) bebas obstacle
     const SPAWN_POS = { x: 0, z: -2 };
 
-    // PRNG deterministik per level & attempt untuk hasil acak yang stabil dan teratur
     function createRng(seed) {
       let s = Math.abs(seed) % 2147483647;
       if (s === 0) s = 123456;
@@ -580,112 +788,216 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       };
     }
 
-    // Generator Jaringan Jalan Terhubung Secara Acak
-    function generateRoads(rand) {
+    function generateRoads(rand, lvlId = 1) {
       const roads = [];
-      // 1. Driveway Gudang (selalu terhubung dari loading bay ke jalan utama)
-      roads.push({ type: 'concrete', minX: -6, maxX: 6, minZ: -16, maxZ: -4 });
-      // 2. Jalan Arteri Utama Timur-Barat (Aspal)
-      roads.push({ type: 'asphalt', minX: -60, maxX: 60, minZ: -4, maxZ: 4 });
 
-      // 3. Koridor Cabang Vertikal Acak (2 di Barat, 2 di Timur)
       const xSlots = [
-        -48 + Math.round((rand() - 0.5) * 8),
+        -48 + Math.round((rand() - 0.5) * 6),
         -26 + Math.round((rand() - 0.5) * 6),
         24 + Math.round((rand() - 0.5) * 6),
-        48 + Math.round((rand() - 0.5) * 8)
+        48 + Math.round((rand() - 0.5) * 6)
       ];
       const types = ['asphalt', 'concrete', 'concrete', 'dirt'];
 
+      const northZ = -44 + Math.round((rand() - 0.5) * 4);
+      const southZ1 = 28 + Math.round((rand() - 0.5) * 4);
+      const southZ2 = 44 + Math.round((rand() - 0.5) * 4);
+
+      const hasFarNorth = lvlId >= 12;
+      const farNorthZ = northZ - 14;
+
+      const extraTier = Math.floor((lvlId - 1) / 4);
+      const hasWestBypass = extraTier >= 6;
+      const hasEastBypass = extraTier >= 7;
+
+      // Batas bentang horizontal & vertikal agar SEMUA jalan tersambung 100% tanpa celah (gap-free)
+      const minXBound = hasWestBypass ? xSlots[0] - 16 : -62;
+      const maxXBound = hasEastBypass ? xSlots[3] + 16 : 62;
+      const minZBound = hasFarNorth ? farNorthZ - 4 : northZ - 4;
+      const maxZBound = southZ2 + 4;
+
+      // 0: Akses loading dock gudang (tersambung mulus ke jalan arteri utama di z = -4)
+      roads.push({ type: 'concrete', minX: -6, maxX: 6, minZ: -16, maxZ: -4 });
+
+      // 1: Jalan arteri utama timur - barat (tersambung melintasi seluruh grid)
+      roads.push({ type: 'asphalt', minX: minXBound, maxX: maxXBound, minZ: -4, maxZ: 4 });
+
+      // 2..5: 4 Jalan arteri vertikal utama (tersambung dari batas utara terluar ke batas selatan terluar)
       xSlots.forEach((cx, idx) => {
         const w = 8;
-        const type = types[Math.floor(rand() * types.length)];
-        const goNorth = rand() > 0.25 || idx % 2 === 0;
-        const goSouth = rand() > 0.25 || idx % 2 === 1;
-        const minZ = goNorth ? (-52 + Math.round(rand() * 8)) : -4;
-        const maxZ = goSouth ? (44 + Math.round(rand() * 8)) : 4;
-
-        roads.push({ type, minX: cx - w/2, maxX: cx + w/2, minZ, maxZ });
+        const type = types[idx % types.length];
+        roads.push({ type, minX: cx - w/2, maxX: cx + w/2, minZ: minZBound, maxZ: maxZBound });
       });
 
-      // 4. Penghubung Horizontal Utara (Loop Distrik Utara)
-      const northZ = -44 + Math.round((rand() - 0.5) * 6);
+      // 6: Jalan horizontal utara (tersambung penuh)
       roads.push({
-        type: rand() > 0.5 ? 'concrete' : 'dirt',
-        minX: Math.min(xSlots[0], xSlots[1]) - 4,
-        maxX: Math.max(xSlots[0], xSlots[1]) + 4,
-        minZ: northZ - 4,
-        maxZ: northZ + 4
-      });
-      roads.push({
-        type: rand() > 0.5 ? 'concrete' : 'dirt',
-        minX: Math.min(xSlots[2], xSlots[3]) - 4,
-        maxX: Math.max(xSlots[2], xSlots[3]) + 4,
+        type: 'concrete',
+        minX: minXBound,
+        maxX: maxXBound,
         minZ: northZ - 4,
         maxZ: northZ + 4
       });
 
-      // 5. Penghubung Horizontal Selatan (Loop Distrik Selatan)
-      const southZ1 = 28 + Math.round((rand() - 0.5) * 6);
+      // 7: Jalan horizontal selatan 1 (tersambung penuh)
       roads.push({
-        type: rand() > 0.4 ? 'asphalt' : 'concrete',
-        minX: Math.min(xSlots[0], xSlots[2]) - 4,
-        maxX: Math.max(xSlots[0], xSlots[2]) + 4,
+        type: 'asphalt',
+        minX: minXBound,
+        maxX: maxXBound,
         minZ: southZ1 - 4,
         maxZ: southZ1 + 4
       });
 
-      const southZ2 = 44 + Math.round((rand() - 0.5) * 6);
+      // 8: Jalan horizontal selatan 2 (tersambung penuh)
       roads.push({
-        type: rand() > 0.5 ? 'concrete' : 'dirt',
-        minX: Math.min(xSlots[1], xSlots[3]) - 4,
-        maxX: Math.max(xSlots[1], xSlots[3]) + 4,
+        type: 'concrete',
+        minX: minXBound,
+        maxX: maxXBound,
         minZ: southZ2 - 4,
         maxZ: southZ2 + 4
       });
 
+      // =========================================================================
+      // JALUR TAMBAHAN PROGRESIF MENYESUAIKAN TINGKAT LEVEL (SEMUA TERSAMBUNG KE JALUR VERTIKAL)
+      // =========================================================================
+      // Level >= 3: Lorong Pintas Tanah Tengah (Shortcut Dirt Road) menghubungkan 2 jalan vertikal tengah
+      if (lvlId >= 3) {
+        roads.push({
+          type: 'dirt',
+          minX: Math.min(xSlots[1], xSlots[2]) - 4,
+          maxX: Math.max(xSlots[1], xSlots[2]) + 4,
+          minZ: 14,
+          maxZ: 20
+        });
+      }
+
+      // Level >= 5: Central South Avenue (Jalur Vertikal Tembus Tengah dari Jalan Utama ke Distrik Selatan)
+      if (lvlId >= 5) {
+        roads.push({
+          type: 'concrete',
+          minX: -3.5,
+          maxX: 3.5,
+          minZ: -4,
+          maxZ: southZ2 + 4
+        });
+      }
+
+      // Level >= 7: Lorong Perumahan Barat Laut (Northwest Residential Alley - Asphalt)
+      if (lvlId >= 7) {
+        roads.push({
+          type: 'asphalt',
+          minX: Math.min(xSlots[0], xSlots[1]) - 4,
+          maxX: Math.max(xSlots[0], xSlots[1]) + 4,
+          minZ: -24,
+          maxZ: -18
+        });
+      }
+
+      // Level >= 9: Lorong Industri Timur Laut (Northeast Industrial Alley - Dirt)
+      if (lvlId >= 9) {
+        roads.push({
+          type: 'dirt',
+          minX: Math.min(xSlots[2], xSlots[3]) - 4,
+          maxX: Math.max(xSlots[2], xSlots[3]) + 4,
+          minZ: -24,
+          maxZ: -18
+        });
+      }
+
+      // Level >= 12: Jalur Arteri Jauh Lingkar Utara (Far North Ring Road - Concrete)
+      if (hasFarNorth) {
+        roads.push({
+          type: 'concrete',
+          minX: minXBound,
+          maxX: maxXBound,
+          minZ: farNorthZ - 4,
+          maxZ: farNorthZ + 4
+        });
+      }
+
+      // Level >= 16: Lorong Pintas Barat Daya
+      if (extraTier >= 4) {
+        roads.push({
+          type: 'dirt',
+          minX: Math.min(xSlots[0], xSlots[1]) - 4,
+          maxX: Math.max(xSlots[0], xSlots[1]) + 4,
+          minZ: 36,
+          maxZ: 42
+        });
+      }
+
+      // Level >= 20: Lorong Pintas Tenggara
+      if (extraTier >= 5) {
+        roads.push({
+          type: 'concrete',
+          minX: Math.min(xSlots[2], xSlots[3]) - 4,
+          maxX: Math.max(xSlots[2], xSlots[3]) + 4,
+          minZ: 36,
+          maxZ: 42
+        });
+      }
+
+      // Level >= 24: Outer West Bypass Avenue
+      if (hasWestBypass) {
+        roads.push({
+          type: 'asphalt',
+          minX: xSlots[0] - 14,
+          maxX: xSlots[0] - 6,
+          minZ: minZBound,
+          maxZ: maxZBound
+        });
+      }
+
+      // Level >= 28: Outer East Bypass Avenue
+      if (hasEastBypass) {
+        roads.push({
+          type: 'asphalt',
+          minX: xSlots[3] + 6,
+          maxX: xSlots[3] + 14,
+          minZ: minZBound,
+          maxZ: maxZBound
+        });
+      }
+
       return roads;
     }
 
-    // Generator Titik Rumah & Drop Zone di Sepanjang Jalan
     function generateHouses(roads, rand, lvlId, targetCount) {
       const houses = [];
       const houseColors = [
         0xef4444, 0x3b82f6, 0x10b981, 0xf59e0b, 0x8b5cf6,
         0xec4899, 0x06b6d4, 0xf97316, 0x14b8a6, 0x84cc16, 0xa855f7
       ];
-      const roadPool = roads.slice(1); // Jangan taruh rumah di driveway gudang
+      const roadPool = roads.slice(1);
 
       let attempts = 0;
-      while (houses.length < targetCount && attempts < 400) {
+      const maxAttempts = Math.max(700, targetCount * 50);
+      while (houses.length < targetCount && attempts < maxAttempts) {
         attempts++;
         const r = roadPool[Math.floor(rand() * roadPool.length)];
         const isHoriz = (r.maxX - r.minX) >= (r.maxZ - r.minZ);
         let dropX, dropZ, hx, hz;
 
         if (isHoriz) {
-          if (r.maxX - r.minX < 14) continue;
-          dropX = r.minX + 6 + rand() * (r.maxX - r.minX - 12);
+          if (r.maxX - r.minX < 12) continue;
+          dropX = r.minX + 5 + rand() * (r.maxX - r.minX - 10);
           dropZ = (r.minZ + r.maxZ) / 2;
           const side = rand() > 0.5 ? 1 : -1;
           hx = dropX;
           hz = dropZ + side * 9;
         } else {
-          if (r.maxZ - r.minZ < 14) continue;
+          if (r.maxZ - r.minZ < 12) continue;
           dropX = (r.minX + r.maxX) / 2;
-          dropZ = r.minZ + 6 + rand() * (r.maxZ - r.minZ - 12);
+          dropZ = r.minZ + 5 + rand() * (r.maxZ - r.minZ - 10);
           const side = rand() > 0.5 ? 1 : -1;
           hx = dropX + side * 9;
           hz = dropZ;
         }
 
-        // Validasi jarak aman dari gudang, loading bay & titik spawn
         if (Math.hypot(hx, hz + 22) < 18) continue;
         if (Math.hypot(hx, hz + 2) < 16) continue;
         if (Math.hypot(dropX, dropZ + 2) < 12) continue;
-        if (Math.abs(hx) > 68 || Math.abs(hz) > 68) continue;
+        if (Math.abs(hx) > 85 || Math.abs(hz) > 85) continue;
 
-        // Validasi agar bangunan rumah tidak menimpa jalan raya mana pun
         let hitRoad = false;
         for (const rd of roads) {
           if (hx > rd.minX - 4.5 && hx < rd.maxX + 4.5 && hz > rd.minZ - 4.5 && hz < rd.maxZ + 4.5) {
@@ -695,10 +1007,9 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
         }
         if (hitRoad) continue;
 
-        // Validasi agar rumah tidak saling bertumpukan
         let tooClose = false;
         for (const h of houses) {
-          if (Math.hypot(hx - h.x, hz - h.z) < 13 || Math.hypot(dropX - h.dropX, dropZ - h.dropZ) < 11) {
+          if (Math.hypot(hx - h.x, hz - h.z) < 11 || Math.hypot(dropX - h.dropX, dropZ - h.dropZ) < 9) {
             tooClose = true;
             break;
           }
@@ -718,30 +1029,139 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       return houses;
     }
 
-    // Generator Barikade Ujung Jalan Buntu
-    function generateBarriers(roads, rand) {
-      const barriers = [
-        { x: -61, z: 0, width: 8, rot: Math.PI / 2 },
-        { x: 61,  z: 0, width: 8, rot: Math.PI / 2 }
+    function generateBarriers(roads, rand, lvlId = 1, houses = []) {
+      const barriers = [];
+
+      const xSlots = [
+        (roads[2].minX + roads[2].maxX) / 2,
+        (roads[3].minX + roads[3].maxX) / 2,
+        (roads[4].minX + roads[4].maxX) / 2,
+        (roads[5].minX + roads[5].maxX) / 2
       ];
+      const mainRoad = roads[1];
+      const northRoad = roads[6];
+      const southRoad2 = roads[8];
+
+      // Barikade penutup batas tepi luar kota (ujung paling barat & timur arteri utama)
+      barriers.push({ x: mainRoad.minX - 1, z: 0, width: 8, rot: Math.PI / 2 });
+      barriers.push({ x: mainRoad.maxX + 1, z: 0, width: 8, rot: Math.PI / 2 });
+
+      // Barikade penutup ujung jalan vertikal di batas paling utara & selatan kota
+      const northDeadEnd = Math.min(...roads.map(r => r.minZ));
+      const southDeadEnd = Math.max(...roads.map(r => r.maxZ));
 
       roads.slice(2, 6).forEach(r => {
-        if (r.minZ < -46 && Math.hypot((r.minX + r.maxX)/2, r.minZ + 2) > 16) {
-          barriers.push({ x: (r.minX + r.maxX) / 2, z: r.minZ - 1, width: 8, rot: 0 });
-        }
-        if (r.maxZ > 42 && Math.hypot((r.minX + r.maxX)/2, r.maxZ + 2) > 16) {
-          barriers.push({ x: (r.minX + r.maxX) / 2, z: r.maxZ + 1, width: 8, rot: 0 });
-        }
+        const cx = (r.minX + r.maxX) / 2;
+        barriers.push({ x: cx, z: northDeadEnd - 1, width: 8, rot: 0 });
+        barriers.push({ x: cx, z: southDeadEnd + 1, width: 8, rot: 0 });
       });
+
+      // Kumpulkan seluruh titik NODE PERSIMPANGAN JALAN (Intersection Nodes)
+      const intersectionNodes = [];
+      const horizontalZs = [
+        0,
+        (northRoad.minZ + northRoad.maxZ) / 2,
+        (roads[7].minZ + roads[7].maxZ) / 2,
+        (southRoad2.minZ + southRoad2.maxZ) / 2
+      ];
+      roads.slice(9).forEach(r => {
+        const isH = (r.maxX - r.minX) >= (r.maxZ - r.minZ);
+        if (isH) horizontalZs.push((r.minZ + r.maxZ) / 2);
+      });
+
+      const verticalXs = [...xSlots];
+      if (lvlId >= 5) verticalXs.push(0);
+
+      verticalXs.forEach(vx => {
+        horizontalZs.forEach(hz => {
+          intersectionNodes.push({ x: vx, z: hz });
+        });
+      });
+
+      // Rintangan Konstruksi / Barikade Jalan di Level Tinggi:
+      // ATURAN MUTLAK:
+      // 1. Diletakkan ANTARA DUA JALAN (mid-block), BUKAN di node persimpangan jalan
+      // 2. TIDAK BOLEH menghalangi TITIK ANTAR rumah (dropPos) maupun Gudang (warehouseBayPos)
+      // 3. Hanya menutup SEPARUH lajur (width 4.8m dengan offset sisi) agar kendaraan kurir & lalu lintas tetap bisa lewat
+      const extraBarriers = Math.floor((lvlId - 1) / 3);
+      if (extraBarriers > 0) {
+        const validMidPoints = [];
+
+        // Buat kandidat titik tengah antara node horizontal
+        for (let i = 0; i < xSlots.length - 1; i++) {
+          const midX = (xSlots[i] + xSlots[i + 1]) / 2;
+          horizontalZs.forEach(hz => {
+            validMidPoints.push({ x: midX, z: hz, rot: Math.PI / 2 });
+          });
+        }
+        // Buat kandidat titik tengah antara node vertikal
+        for (let j = 0; j < horizontalZs.length - 1; j++) {
+          const midZ = (horizontalZs[j] + horizontalZs[j + 1]) / 2;
+          xSlots.forEach(vx => {
+            validMidPoints.push({ x: vx, z: midZ, rot: 0 });
+          });
+        }
+
+        // Filter kandidat: bebas dari titik antar, gudang, dan node persimpangan
+        const safeCandidates = validMidPoints.filter(pt => {
+          if (Math.hypot(pt.x - warehouseBayPos.x, pt.z - warehouseBayPos.z) < 16) return false;
+          if (Math.hypot(pt.x - warehouseBuildingPos.x, pt.z - warehouseBuildingPos.z) < 18) return false;
+          if (Math.hypot(pt.x - SPAWN_POS.x, pt.z - SPAWN_POS.z) < 15) return false;
+
+          for (const h of houses) {
+            if (Math.hypot(pt.x - h.dropX, pt.z - h.dropZ) < 11) return false;
+            if (Math.hypot(pt.x - h.x, pt.z - h.z) < 9) return false;
+          }
+
+          for (const node of intersectionNodes) {
+            if (Math.hypot(pt.x - node.x, pt.z - node.z) < 8.5) return false;
+          }
+
+          return true;
+        });
+
+        const chosen = [];
+        let attempts = 0;
+        while (chosen.length < extraBarriers && safeCandidates.length > 0 && attempts < 100) {
+          attempts++;
+          const idx = Math.floor(rand() * safeCandidates.length);
+          const cand = safeCandidates[idx];
+          let tooClose = false;
+          for (const b of chosen) {
+            if (Math.hypot(cand.x - b.x, cand.z - b.z) < 14) {
+              tooClose = true;
+              break;
+            }
+          }
+          if (!tooClose) {
+            chosen.push(cand);
+            // Geser ke salah satu sisi lajur jalan agar 1 lajur tetap bebas lancar
+            const isHorizRoad = cand.rot === Math.PI / 2;
+            const laneOffset = rand() > 0.5 ? 2.0 : -2.0;
+            const bx = isHorizRoad ? cand.x : cand.x + laneOffset;
+            const bz = isHorizRoad ? cand.z + laneOffset : cand.z;
+            barriers.push({
+              x: Math.round(bx * 10) / 10,
+              z: Math.round(bz * 10) / 10,
+              width: 4.8,
+              rot: cand.rot
+            });
+          }
+          safeCandidates.splice(idx, 1);
+        }
+      }
 
       return barriers;
     }
 
-    // Generator Traffic Cones Tepi Jalan
-    function generateCones(roads, rand) {
+    function generateCones(roads, rand, lvlId = 1, houses = []) {
       const cones = [];
       const roadPool = roads.slice(2);
-      for (let i = 0; i < 4; i++) {
+      const coneCount = 3 + Math.floor((lvlId - 1) * 0.85);
+
+      let attempts = 0;
+      while (cones.length < coneCount && attempts < coneCount * 30) {
+        attempts++;
         const r = roadPool[Math.floor(rand() * roadPool.length)];
         const isHoriz = (r.maxX - r.minX) >= (r.maxZ - r.minZ);
         let cx, cz;
@@ -752,14 +1172,348 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
           cx = (r.minX + r.maxX) / 2 + (rand() > 0.5 ? 3.3 : -3.3);
           cz = r.minZ + 8 + rand() * (r.maxZ - r.minZ - 16);
         }
-        if (Math.hypot(cx, cz + 2) > 14) {
-          cones.push({ x: Math.round(cx * 10) / 10, z: Math.round(cz * 10) / 10 });
+
+        if (Math.hypot(cx - SPAWN_POS.x, cz - SPAWN_POS.z) < 14) continue;
+        if (Math.hypot(cx - warehouseBayPos.x, cz - warehouseBayPos.z) < 14) continue;
+
+        // Pastikan cone tidak pernah menghalangi titik antar rumah mana pun
+        let nearDrop = false;
+        for (const h of houses) {
+          if (Math.hypot(cx - h.dropX, cz - h.dropZ) < 6.5) {
+            nearDrop = true;
+            break;
+          }
         }
+        if (nearDrop) continue;
+
+        cones.push({ x: Math.round(cx * 10) / 10, z: Math.round(cz * 10) / 10 });
       }
+
       return cones;
     }
 
-    // Tema & Bioma Visual Kota
+    function buildSmoothCircuit(segs) {
+      const L = 2.0;
+      const pts = [];
+
+      for (let i = 0; i < segs.length; i++) {
+        const s = segs[i];
+        const nextS = segs[(i + 1) % segs.length];
+
+        const isH = s.fromZ === s.toZ;
+        const dir = isH ? (s.toX > s.fromX ? 1 : -1) : (s.toZ > s.fromZ ? 1 : -1);
+        const laneZ = isH ? (dir > 0 ? s.fromZ - L : s.fromZ + L) : null;
+        const laneX = !isH ? (dir > 0 ? s.fromX + L : s.fromX - L) : null;
+        const rot = isH ? (dir > 0 ? Math.PI / 2 : -Math.PI / 2) : (dir > 0 ? 0 : Math.PI);
+
+        const nextIsH = nextS.fromZ === nextS.toZ;
+        const nextDir = nextIsH ? (nextS.toX > nextS.fromX ? 1 : -1) : (nextS.toZ > nextS.fromZ ? 1 : -1);
+        const nextLaneZ = nextIsH ? (nextDir > 0 ? nextS.fromZ - L : nextS.fromZ + L) : null;
+        const nextLaneX = !nextIsH ? (nextDir > 0 ? nextS.fromX + L : nextS.fromX - L) : null;
+        const nextRot = nextIsH ? (nextDir > 0 ? Math.PI / 2 : -Math.PI / 2) : (nextDir > 0 ? 0 : Math.PI);
+
+        const v1 = { x: Math.sin(rot), z: Math.cos(rot) };
+        const v2 = { x: Math.sin(nextRot), z: Math.cos(nextRot) };
+        const cross = v1.x * v2.z - v1.z * v2.x;
+        const isRightTurn = cross > 0;
+
+        const turnSpanStart = isRightTurn ? 2.0 : 3.0;
+        const turnSpanEnd = isRightTurn ? 2.0 : 3.0;
+        const tangentScale = isRightTurn ? 1.5 : 0.8;
+
+        let startC, endC;
+        if (isH) {
+          const prevS = segs[(i - 1 + segs.length) % segs.length];
+          const prevRot = prevS.fromZ === prevS.toZ ? (prevS.toX > prevS.fromX ? Math.PI / 2 : -Math.PI / 2) : (prevS.toZ > prevS.fromZ ? 0 : Math.PI);
+          const prevV = { x: Math.sin(prevRot), z: Math.cos(prevRot) };
+          const prevCross = prevV.x * v1.z - prevV.z * v1.x;
+          const prevSpan = prevCross > 0 ? 2.0 : 3.0;
+
+          startC = s.fromX + dir * prevSpan;
+          endC = s.toX - dir * turnSpanStart;
+          const count = Math.max(1, Math.floor(Math.abs(endC - startC) / 0.8));
+          for (let k = 0; k <= count; k++) {
+            const x = startC + (endC - startC) * (k / count);
+            pts.push({ x, z: laneZ, rotY: rot });
+          }
+        } else {
+          const prevS = segs[(i - 1 + segs.length) % segs.length];
+          const prevRot = prevS.fromZ === prevS.toZ ? (prevS.toX > prevS.fromX ? Math.PI / 2 : -Math.PI / 2) : (prevS.toZ > prevS.fromZ ? 0 : Math.PI);
+          const prevV = { x: Math.sin(prevRot), z: Math.cos(prevRot) };
+          const prevCross = prevV.x * v1.z - prevV.z * v1.x;
+          const prevSpan = prevCross > 0 ? 2.0 : 3.0;
+
+          startC = s.fromZ + dir * prevSpan;
+          endC = s.toZ - dir * turnSpanStart;
+          const count = Math.max(1, Math.floor(Math.abs(endC - startC) / 0.8));
+          for (let k = 0; k <= count; k++) {
+            const z = startC + (endC - startC) * (k / count);
+            pts.push({ x: laneX, z, rotY: rot });
+          }
+        }
+
+        const pCornerStart = isH ? { x: endC, z: laneZ } : { x: laneX, z: endC };
+        const pCornerEnd = nextIsH ? { x: nextS.fromX + nextDir * turnSpanEnd, z: nextLaneZ } : { x: nextLaneX, z: nextS.fromZ + nextDir * turnSpanEnd };
+
+        const cp1 = { x: pCornerStart.x + v1.x * tangentScale, z: pCornerStart.z + v1.z * tangentScale };
+        const cp2 = { x: pCornerEnd.x - v2.x * tangentScale, z: pCornerEnd.z - v2.z * tangentScale };
+
+        const cornerSteps = 6;
+        for (let k = 1; k < cornerSteps; k++) {
+          const u = k / cornerSteps;
+          const omt = 1 - u;
+          const omt2 = omt * omt;
+          const omt3 = omt2 * omt;
+          const u2 = u * u;
+          const u3 = u2 * u;
+
+          const x = omt3 * pCornerStart.x + 3 * omt2 * u * cp1.x + 3 * omt * u2 * cp2.x + u3 * pCornerEnd.x;
+          const z = omt3 * pCornerStart.z + 3 * omt2 * u * cp1.z + 3 * omt * u2 * cp2.z + u3 * pCornerEnd.z;
+
+          const dx = 3 * omt2 * (cp1.x - pCornerStart.x) + 6 * omt * u * (cp2.x - cp1.x) + 3 * u2 * (pCornerEnd.x - cp2.x);
+          const dz = 3 * omt2 * (cp1.z - pCornerStart.z) + 6 * omt * u * (cp2.z - cp1.z) + 3 * u2 * (pCornerEnd.z - cp2.z);
+          const rotY = Math.atan2(dx, dz);
+          pts.push({ x, z, rotY });
+        }
+      }
+
+      const cumDist = [0];
+      for (let i = 1; i < pts.length; i++) {
+        const d = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z);
+        cumDist.push(cumDist[i - 1] + d);
+      }
+      const loopClose = Math.hypot(pts[0].x - pts[pts.length - 1].x, pts[0].z - pts[pts.length - 1].z);
+      const totalLen = cumDist[cumDist.length - 1] + loopClose;
+
+      return { pts, cumDist, totalLen };
+    }
+
+    function getPointAtDistance(path, d) {
+      let dist = d % path.totalLen;
+      if (dist < 0) dist += path.totalLen;
+
+      let low = 0, high = path.cumDist.length - 1;
+      while (low <= high) {
+        const mid = (low + high) >> 1;
+        if (path.cumDist[mid] < dist) low = mid + 1;
+        else high = mid - 1;
+      }
+      const idx = Math.max(0, low - 1);
+      const nextIdx = (idx + 1) % path.pts.length;
+      const d0 = path.cumDist[idx];
+      const d1 = idx === path.pts.length - 1 ? path.totalLen : path.cumDist[nextIdx];
+      const span = d1 - d0;
+      const t = span > 0.0001 ? (dist - d0) / span : 0;
+
+      const p0 = path.pts[idx];
+      const p1 = path.pts[nextIdx];
+
+      const x = p0.x + (p1.x - p0.x) * t;
+      const z = p0.z + (p1.z - p0.z) * t;
+
+      let a0 = p0.rotY, a1 = p1.rotY;
+      let diff = a1 - a0;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      const rotY = a0 + diff * t;
+
+      return { x, z, rotY };
+    }
+
+    function generateMovingObstacles(roads, rand, lvlId) {
+      const list = [];
+      // Jumlah rintangan lalu lintas bergerak bertambah secara dinamis tanpa batas seiring naiknya level
+      const count = 2 + Math.floor((lvlId - 1) * 0.9);
+      const speedScale = 1.0 + Math.min(0.35, (lvlId - 1) * 0.015);
+
+      const cx0 = (roads[2].minX + roads[2].maxX) / 2;
+      const cx1 = (roads[3].minX + roads[3].maxX) / 2;
+      const cx2 = (roads[4].minX + roads[4].maxX) / 2;
+      const cx3 = (roads[5].minX + roads[5].maxX) / 2;
+      const northZ = (roads[6].minZ + roads[6].maxZ) / 2;
+      const southZ1 = (roads[7].minZ + roads[7].maxZ) / 2;
+      const southZ2 = (roads[8].minZ + roads[8].maxZ) / 2;
+      const mainZ = 0;
+
+      const segsRoute1 = [
+        { fromX: cx0, fromZ: northZ, toX: cx3, toZ: northZ },
+        { fromX: cx3, fromZ: northZ, toX: cx3, toZ: mainZ },
+        { fromX: cx3, fromZ: mainZ, toX: cx1, toZ: mainZ },
+        { fromX: cx1, fromZ: mainZ, toX: cx1, toZ: southZ1 },
+        { fromX: cx1, fromZ: southZ1, toX: cx2, toZ: southZ1 },
+        { fromX: cx2, fromZ: southZ1, toX: cx2, toZ: southZ2 },
+        { fromX: cx2, fromZ: southZ2, toX: cx0, toZ: southZ2 },
+        { fromX: cx0, fromZ: southZ2, toX: cx0, toZ: northZ }
+      ];
+      const circuit1 = buildSmoothCircuit(segsRoute1);
+
+      const segsRoute2 = [
+        { fromX: cx1, fromZ: southZ2, toX: cx3, toZ: southZ2 },
+        { fromX: cx3, fromZ: southZ2, toX: cx3, toZ: southZ1 },
+        { fromX: cx3, fromZ: southZ1, toX: cx0, toZ: southZ1 },
+        { fromX: cx0, fromZ: southZ1, toX: cx0, toZ: mainZ },
+        { fromX: cx0, fromZ: mainZ, toX: cx2, toZ: mainZ },
+        { fromX: cx2, fromZ: mainZ, toX: cx2, toZ: northZ },
+        { fromX: cx2, fromZ: northZ, toX: cx1, toZ: northZ },
+        { fromX: cx1, fromZ: northZ, toX: cx1, toZ: southZ2 }
+      ];
+      const circuit2 = buildSmoothCircuit(segsRoute2);
+
+      const segsRoute3 = [
+        { fromX: cx3, fromZ: northZ, toX: cx0, toZ: northZ },
+        { fromX: cx0, fromZ: northZ, toX: cx0, toZ: southZ1 },
+        { fromX: cx0, fromZ: southZ1, toX: cx3, toZ: southZ1 },
+        { fromX: cx3, fromZ: southZ1, toX: cx3, toZ: mainZ },
+        { fromX: cx3, fromZ: mainZ, toX: cx2, toZ: mainZ },
+        { fromX: cx2, fromZ: mainZ, toX: cx2, toZ: southZ2 },
+        { fromX: cx2, fromZ: southZ2, toX: cx1, toZ: southZ2 },
+        { fromX: cx1, fromZ: southZ2, toX: cx1, toZ: northZ }
+      ];
+      const circuit3 = buildSmoothCircuit(segsRoute3);
+
+      const segsRoute4 = [
+        { fromX: cx0, fromZ: mainZ, toX: cx3, toZ: mainZ },
+        { fromX: cx3, fromZ: mainZ, toX: cx3, toZ: southZ2 },
+        { fromX: cx3, fromZ: southZ2, toX: cx2, toZ: southZ2 },
+        { fromX: cx2, fromZ: southZ2, toX: cx2, toZ: northZ },
+        { fromX: cx2, fromZ: northZ, toX: cx0, toZ: northZ },
+        { fromX: cx0, fromZ: northZ, toX: cx0, toZ: southZ1 },
+        { fromX: cx0, fromZ: southZ1, toX: cx1, toZ: southZ1 },
+        { fromX: cx1, fromZ: southZ1, toX: cx1, toZ: mainZ }
+      ];
+      const circuit4 = buildSmoothCircuit(segsRoute4);
+
+      const circuits = [circuit1, circuit2, circuit3, circuit4];
+      const carColors = [0xdc2626, 0x3b82f6, 0x059669, 0xea580c, 0x64748b, 0xeab308, 0x8b5cf6, 0x0284c7, 0x10b981];
+      const shirtColors = [0x0284c7, 0xeab308, 0xec4899, 0x8b5cf6, 0x10b981, 0xf97316, 0xef4444];
+
+      const crossingSpots = [
+        { crossAxis: 'z', fixedAxis: 'x', fixedPos: cx0 + 10, minPos: -5.8, maxPos: 5.8, hasZebra: true },
+        { crossAxis: 'z', fixedAxis: 'x', fixedPos: 18, minPos: -5.5, maxPos: 5.5, hasZebra: false },
+        { crossAxis: 'z', fixedAxis: 'x', fixedPos: -12, minPos: -5.2, maxPos: 5.2, hasZebra: false },
+        { crossAxis: 'z', fixedAxis: 'x', fixedPos: cx2 + 8, minPos: northZ - 5.8, maxPos: northZ + 5.8, hasZebra: true },
+        { crossAxis: 'z', fixedAxis: 'x', fixedPos: cx1 - 6, minPos: southZ1 - 5.8, maxPos: southZ1 + 5.8, hasZebra: true },
+        { crossAxis: 'z', fixedAxis: 'x', fixedPos: cx1 + 10, minPos: southZ2 - 5.5, maxPos: southZ2 + 5.5, hasZebra: false },
+        { crossAxis: 'z', fixedAxis: 'x', fixedPos: cx3 - 10, minPos: -5.8, maxPos: 5.8, hasZebra: true },
+        { crossAxis: 'x', fixedAxis: 'z', fixedPos: northZ + 2, minPos: cx0 - 6, maxPos: cx0 + 6, hasZebra: false }
+      ];
+
+      const circuitCounters = [0, 0, 0, 0];
+      const estCarsPerCircuit = Math.max(1, Math.ceil((count * 0.7) / circuits.length));
+
+      for (let i = 0; i < count; i++) {
+        // Sekitar 70% kendaraan di sirkuit jalan, 30% penyeberang (pejalan kaki atau hewan)
+        const isCrossing = (i % 3 === 2);
+
+        if (!isCrossing) {
+          const circuitIdx = i % circuits.length;
+          const circuit = circuits[circuitIdx];
+          const vehTypeRoll = rand();
+          // Distribusi: 30% sepeda motor, 25% angkot, 45% sedan/van
+          const isMotorcycle = vehTypeRoll < 0.30;
+          const isAngkot = !isMotorcycle && vehTypeRoll < 0.55;
+          const subType = isMotorcycle ? 'motorcycle' : (isAngkot ? 'angkot' : 'sedan');
+
+          const carColor = isAngkot
+            ? (rand() > 0.5 ? 0x059669 : 0xeab308)
+            : carColors[Math.floor(rand() * carColors.length)];
+
+          // Kecepatan harmonis agar lalu lintas mengalir serempak tanpa saling menumpuk
+          const baseSpeed = isMotorcycle ? 0.136 : (isAngkot ? 0.126 : 0.130);
+          const speed = (baseSpeed + (rand() - 0.5) * 0.008) * speedScale;
+
+          // Jarak awal didistribusikan merata di sepanjang sirkuit agar tidak pernah menumpuk saat start
+          const idxOnCircuit = circuitCounters[circuitIdx]++;
+          const initialDistance = ((idxOnCircuit + 0.12) / estCarsPerCircuit) * circuit.totalLen;
+
+          let name = 'Mobil Sedan Warga';
+          let penalty = 9000;
+          let penaltyName = 'Ganti Rugi Mobil Warga';
+
+          if (isMotorcycle) {
+            name = rand() > 0.5 ? 'Sepeda Motor Warga' : 'Kurir Ojek Online';
+            penalty = 7500;
+            penaltyName = 'Ganti Rugi Senggolan Motor';
+          } else if (isAngkot) {
+            name = rand() > 0.5 ? 'Angkot Kota (Suka Ngetem)' : 'Angkot Jurusan Pasar';
+            penalty = 10000;
+            penaltyName = 'Ganti Rugi Angkot';
+          } else if (rand() > 0.5) {
+            name = 'Mobil Box Ekspedisi';
+            penalty = 11000;
+            penaltyName = 'Ganti Rugi Mobil Logistik';
+          }
+
+          list.push({
+            type: 'vehicle',
+            subType,
+            name,
+            penalty,
+            penaltyName,
+            circuitPath: circuit,
+            initialDistance,
+            speed,
+            isAngkot,
+            carColor
+          });
+        } else {
+          // Penyeberang (Warga atau Hewan)
+          const spot = crossingSpots[Math.floor(rand() * crossingSpots.length)];
+          const isAnimal = rand() < 0.35;
+
+          if (isAnimal) {
+            const isChicken = rand() > 0.5;
+            list.push({
+              type: 'animal',
+              subType: isChicken ? 'chicken' : 'cat',
+              name: isChicken ? 'Ayam Kampung Menyeberang' : 'Kucing Oren Menyeberang',
+              penalty: isChicken ? 4000 : 6000,
+              penaltyName: isChicken ? 'Ganti Rugi Ternak Ayam' : 'Ganti Rugi Kucing Warga',
+              crossAxis: spot.crossAxis,
+              fixedAxis: spot.fixedAxis,
+              fixedPos: spot.fixedPos,
+              minPos: spot.minPos,
+              maxPos: spot.maxPos,
+              speed: (isChicken ? 0.075 : 0.065) * speedScale,
+              initialPos: rand() > 0.5 ? spot.minPos + 0.3 : spot.maxPos - 0.3,
+              dir: rand() > 0.5 ? 1 : -1
+            });
+          } else {
+            const shirtColor = shirtColors[Math.floor(rand() * shirtColors.length)];
+            const names = [
+              'Pejalan Kaki Menyeberang',
+              'Warga Bawa Payung Menyeberang',
+              'Ibu Bawa Belanjaan Menyeberang',
+              'Warga Menyeberang ke Warung',
+              'Pelajar Menyeberang Zebra Cross'
+            ];
+            const name = names[Math.floor(rand() * names.length)];
+
+            list.push({
+              type: 'pedestrian',
+              subType: 'citizen',
+              name,
+              penalty: 15000,
+              penaltyName: 'Kompensasi Pejalan Kaki',
+              crossAxis: spot.crossAxis,
+              fixedAxis: spot.fixedAxis,
+              fixedPos: spot.fixedPos,
+              minPos: spot.minPos,
+              maxPos: spot.maxPos,
+              speed: (0.042 + (rand() - 0.5) * 0.008) * speedScale,
+              shirtColor,
+              hasZebra: spot.hasZebra,
+              initialPos: rand() > 0.5 ? spot.minPos + 0.5 : spot.maxPos - 0.5,
+              dir: rand() > 0.5 ? 1 : -1
+            });
+          }
+        }
+      }
+
+      return list;
+    }
+
+    // Tema & Bioma Visual Kota + Ikon Distrik untuk Level Track Map
     const BIOMES = [
       {
         title: "Lembah Suburban",
@@ -767,6 +1521,8 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
         groundColor: 0x55962c,
         skyColor: 0xc8e6f5,
         themeDesc: "ASPAL, BETON & TANAH",
+        icon: "fa-house-chimney-window",
+        badgeClass: "text-emerald-300 border-emerald-500/40 bg-emerald-950/60",
         isIndustrial: false
       },
       {
@@ -775,6 +1531,8 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
         groundColor: 0x4b7d16,
         skyColor: 0xdbeafe,
         themeDesc: "ARTERI KOTA MODERN",
+        icon: "fa-city",
+        badgeClass: "text-sky-300 border-sky-500/40 bg-sky-950/60",
         isIndustrial: false
       },
       {
@@ -783,6 +1541,8 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
         groundColor: 0x475569,
         skyColor: 0xcbd5e1,
         themeDesc: "DERMAGA & KONTAINER",
+        icon: "fa-anchor",
+        badgeClass: "text-cyan-300 border-cyan-500/40 bg-cyan-950/60",
         isIndustrial: true
       },
       {
@@ -791,6 +1551,8 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
         groundColor: 0x713f12,
         skyColor: 0xfbcfe8,
         themeDesc: "SENJA & PANTAI",
+        icon: "fa-umbrella-beach",
+        badgeClass: "text-pink-300 border-pink-500/40 bg-pink-950/60",
         isIndustrial: false
       },
       {
@@ -799,6 +1561,8 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
         groundColor: 0x14532d,
         skyColor: 0xe0f2fe,
         themeDesc: "PERBUKITAN PINUS",
+        icon: "fa-mountain-sun",
+        badgeClass: "text-teal-300 border-teal-500/40 bg-teal-950/60",
         isIndustrial: false
       },
       {
@@ -807,6 +1571,8 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
         groundColor: 0x1e293b,
         skyColor: 0x0f172a,
         themeDesc: "ASPAL MALAM & NEON",
+        icon: "fa-microchip",
+        badgeClass: "text-purple-300 border-purple-500/40 bg-purple-950/60",
         isIndustrial: true
       },
       {
@@ -815,6 +1581,8 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
         groundColor: 0x92400e,
         skyColor: 0xfef3c7,
         themeDesc: "TANAH & JALAN GURUN",
+        icon: "fa-sun",
+        badgeClass: "text-amber-300 border-amber-500/40 bg-amber-950/60",
         isIndustrial: false
       },
       {
@@ -823,27 +1591,26 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
         groundColor: 0x78350f,
         skyColor: 0xffedd5,
         themeDesc: "LEMBUT KEEMASAN",
+        icon: "fa-leaf",
+        badgeClass: "text-orange-300 border-orange-500/40 bg-orange-950/60",
         isIndustrial: false
       }
     ];
 
-    // Generator Konfigurasi Level Prosedural Lengkap
     function generateLevelData(lvlId, attempt = 1) {
       const biome = BIOMES[(lvlId - 1) % BIOMES.length];
       const rand = createRng(lvlId * 10007 + attempt * 739 + 7381);
 
-      // Target kuota pengiriman meningkat secara bertahap sesuai level
-      const quotaTarget = Math.min(10, 4 + Math.floor((lvlId - 1) * 0.75));
+      // Target Kuota Paket Dinamis (dikurangi 60% dari sebelumnya agar permainan lebih ringkas & cepat)
+      const quotaTarget = Math.max(2, Math.round((4 + Math.floor((lvlId - 1) * 1.1) + Math.floor((lvlId - 1) / 4)) * 0.4));
+      const shiftDuration = Math.round(45 + quotaTarget * 24);
 
-      // WAKTU MUNDUR PER LEVEL (BUKAN TOTAL KESELURUHAN):
-      // Dihitung khusus untuk setiap level berdasarkan target kuota pengiriman
-      const shiftDuration = Math.round(55 + quotaTarget * 22);
-
-      const roads = generateRoads(rand);
-      const houseCount = Math.min(8, 5 + Math.floor((lvlId - 1) / 3));
+      const roads = generateRoads(rand, lvlId);
+      const houseCount = 5 + Math.floor((lvlId - 1) * 0.75);
       const houses = generateHouses(roads, rand, lvlId, houseCount);
-      const barriers = generateBarriers(roads, rand);
-      const cones = generateCones(roads, rand);
+      const barriers = generateBarriers(roads, rand, lvlId, houses);
+      const cones = generateCones(roads, rand, lvlId, houses);
+      const movingObstacles = generateMovingObstacles(roads, rand, lvlId);
 
       return {
         id: lvlId,
@@ -854,15 +1621,17 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
         quotaTarget,
         shiftDuration,
         themeDesc: biome.themeDesc,
+        icon: biome.icon,
+        badgeClass: biome.badgeClass,
         isIndustrial: biome.isIndustrial,
         roads,
         houses,
         barriers,
-        cones
+        cones,
+        movingObstacles
       };
     }
 
-    // Generator Spesifikasi Bobot & Biaya Pengantaran Per Paket Berdasarkan Level
     function generatePackageSpec(lvlId) {
       const tiers = [
         { type: 'light', name: 'Ringan', minKg: 1.2, maxKg: 3.5, mult: 1.0, icon: 'fa-box', timeBonus: 0 },
@@ -870,17 +1639,13 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
         { type: 'heavy', name: 'Kargo Berat', minKg: 9.0, maxKg: 16.5, mult: 1.6, icon: 'fa-truck-ramp-box', timeBonus: 1 }
       ];
 
-      // Acak bobot paket (40% ringan, 35% sedang, 25% kargo berat)
       const roll = Math.random();
       const tier = roll < 0.40 ? tiers[0] : (roll < 0.75 ? tiers[1] : tiers[2]);
       const weightKg = parseFloat((tier.minKg + Math.random() * (tier.maxKg - tier.minKg)).toFixed(1));
 
-      // Biaya pengantaran disesuaikan agar seimbang (Level 1: Rp 3.500, naik bertahap per level)
       const baseRate = 3500 + (lvlId - 1) * 1200;
-      // Dibulatkan ke kelipatan Rp 500
       const deliveryFee = Math.round((baseRate * tier.mult) / 500) * 500;
-      // Penalti keterlambatan proporsional terhadap tarif paket
-      const penaltyPerSec = Math.max(150, Math.round(deliveryFee / 18));
+      const penaltyPerSec = Math.max(80, Math.round(deliveryFee / 32));
 
       return {
         tier: tier.type,
@@ -893,9 +1658,7 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       };
     }
 
-    // Gudang berdiri di luar jalan raya (di x: 0, z: -22)
     const warehouseBuildingPos = new THREE.Vector3(0, 0, -22);
-    // Lingkaran kuning Loading Bay berada di atas driveway beton (x: 0, z: -10)
     const warehouseBayPos = new THREE.Vector3(0, 0, -10);
 
     /* =========================================================================
@@ -903,34 +1666,36 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
        ========================================================================= */
     const SURFACE_TYPES = {
       asphalt: {
+        name: 'JALAN ASPAL',
         maxSpeed: 0.56,
-        label: 'JALAN ASPAL (100% SPEED)',
         colorClass: 'text-cyan-400',
         icon: 'fa-road',
         boxClass: 'bg-slate-800 text-cyan-400'
       },
       concrete: {
+        name: 'JALAN BETON',
         maxSpeed: 0.45,
-        label: 'JALAN BETON (80% SPEED)',
         colorClass: 'text-sky-300',
         icon: 'fa-grip-lines',
         boxClass: 'bg-slate-800 text-sky-300'
       },
       dirt: {
+        name: 'JALAN TANAH',
         maxSpeed: 0.34,
-        label: 'JALAN TANAH (60% SPEED)',
         colorClass: 'text-amber-400',
         icon: 'fa-mound',
         boxClass: 'bg-amber-950/60 text-amber-400'
       },
       offroad: {
+        name: 'RUMPUT OFF-ROAD',
         maxSpeed: 0.20,
-        label: 'RUMPUT OFF-ROAD (35% SPEED)',
         colorClass: 'text-rose-400',
         icon: 'fa-triangle-exclamation',
         boxClass: 'bg-rose-950/70 text-rose-400'
       }
     };
+
+    const SPEED_TO_KMH = 60 / SURFACE_TYPES.asphalt.maxSpeed;
 
     /* =========================================================================
        KATALOG KENDARAAN DEALER & SISTEM PENYIMPANAN LOKAL (LOCALSTORAGE)
@@ -946,7 +1711,7 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
         capacity: 3,
         speedMult: 1.00,
         acceleration: 0.035,
-        chassisColor: 0x0284c7, // Ocean Blue
+        chassisColor: 0x0284c7,
         cabinColor: 0x38bdf8,
         glowColor: 0x0284c7,
         glowIntensity: 0,
@@ -964,7 +1729,7 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
         capacity: 4,
         speedMult: 1.18,
         acceleration: 0.045,
-        chassisColor: 0xea580c, // Safety Orange
+        chassisColor: 0xea580c,
         cabinColor: 0xfb923c,
         glowColor: 0xf97316,
         glowIntensity: 0.9,
@@ -982,7 +1747,7 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
         capacity: 5,
         speedMult: 1.35,
         acceleration: 0.055,
-        chassisColor: 0x059669, // Emerald Nitro
+        chassisColor: 0x059669,
         cabinColor: 0x34d399,
         glowColor: 0x10b981,
         glowIntensity: 1.4,
@@ -1000,7 +1765,7 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
         capacity: 6,
         speedMult: 1.55,
         acceleration: 0.070,
-        chassisColor: 0x7c3aed, // Cyber Violet
+        chassisColor: 0x7c3aed,
         cabinColor: 0xa855f7,
         glowColor: 0x8b5cf6,
         glowIntensity: 2.0,
@@ -1014,6 +1779,8 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
 
     const state = {
       level: 1,
+      highestUnlockedLevel: 1,
+      levelRecords: {}, // Menyimpan { stars: 5, rating: 5.0, earned: 18500 } per level
       levelAttempts: {},
       currentLevelConfig: null,
       currentPackage: null,
@@ -1023,14 +1790,18 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       packageTimeLeft: 8,
       warehouseTimeLimit: 9,
       warehouseTimeLeft: 9,
-      quotaTarget: 4,
+      quotaTarget: 2,
       deliveredCount: 0,
       packagesLoaded: 0,
       maxPackages: 3,
       totalCash: 0,
+      levelEarnedCash: 0,
+      levelGrossPay: 0,
+      levelPenalties: 0,
+      lastLevelSummary: null,
       ownedVehicles: ['starter_pickup'],
       equippedVehicle: 'starter_pickup',
-      objective: 'warehouse', // 'warehouse' | 'house'
+      objective: 'warehouse',
       targetHouse: null,
       lastDeliveredHouseId: null,
       lastDeliveredDropPos: null,
@@ -1038,7 +1809,10 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       courierRot: Math.PI,
       isHoldingVerify: false,
       verifyProgress: 0,
-      lastBeepTime: 0
+      lastBeepTime: 0,
+      nextLevelToLoad: null,
+      lastObstacleHitTime: 0,
+      screenShakeDuration: 0
     };
 
     const keys = { w: false, a: false, s: false, d: false };
@@ -1048,6 +1822,8 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
     let roadSegments = [];
     let houses = [];
     let npcs = [];
+    let movingObstacles = [];
+    let floatingImpactLabels = [];
 
     // Setup Scene, Camera Orthographic Isometrik & Renderer
     const container = document.getElementById('game-canvas-container');
@@ -1075,7 +1851,6 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     container.appendChild(renderer.domElement);
 
-    // Pencahayaan Matahari Hangat & Ambient
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.72);
     scene.add(ambientLight);
 
@@ -1097,7 +1872,6 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
     const worldGroup = new THREE.Group();
     scene.add(worldGroup);
 
-    // Beacon Cahaya Langit di atas Tujuan Aktif agar selalu terlihat dari kejauhan
     const beaconGroup = new THREE.Group();
     const beaconBeam = new THREE.Mesh(
       new THREE.CylinderGeometry(1.8, 1.8, 32, 20, 1, true),
@@ -1120,6 +1894,231 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
     beaconGroup.add(beaconDiamond);
     scene.add(beaconGroup);
 
+    /* =========================================================================
+       FITUR BARU: RENDERER PETA JALUR LEVEL (LEVEL TRACK MAP DI KIRI MODAL)
+       ========================================================================= */
+    function renderLevelTrackMap(autoScroll = true) {
+      const canvasEl = document.getElementById('level-track-canvas');
+      if (!canvasEl) return;
+
+      const activeLvl = state.nextLevelToLoad || state.level || 1;
+      const highestLvl = Math.max(state.highestUnlockedLevel || 1, activeLvl);
+      const totalNodesToShow = Math.max(12, highestLvl + 4);
+
+      // Update Statistik Header Peta Jalur
+      const completedCount = Math.max(0, highestLvl - 1);
+      let totalStars = 0;
+      for (let i = 1; i < highestLvl; i++) {
+        const rec = state.levelRecords && state.levelRecords[i];
+        totalStars += rec && rec.stars ? rec.stars : 5;
+      }
+
+      const badgeEl = document.getElementById('track-highest-badge');
+      if (badgeEl) badgeEl.innerText = `LVL ${highestLvl}`;
+
+      const compEl = document.getElementById('track-completed-count');
+      if (compEl) compEl.innerText = `${completedCount} Lvl`;
+
+      const starsEl = document.getElementById('track-total-stars');
+      if (starsEl) starsEl.innerText = `${totalStars} ★`;
+
+      const posEl = document.getElementById('track-active-pos');
+      if (posEl) posEl.innerText = `Lvl ${activeLvl}`;
+
+      // Konfigurasi Geometri Winding Track (Dari Bawah = Level 1 ke Atas = Level Tinggi)
+      const rowHeight = 86;
+      const topPadding = 54;
+      const bottomPadding = 54;
+      const totalHeight = totalNodesToShow * rowHeight + topPadding + bottomPadding;
+      const width = 300;
+
+      // Pola zig-zag berkelok 4 titik
+      const xPattern = [64, 150, 236, 150];
+
+      canvasEl.style.height = `${totalHeight}px`;
+      canvasEl.style.width = `${width}px`;
+
+      const nodes = [];
+      for (let lvl = 1; lvl <= totalNodesToShow; lvl++) {
+        // Level 1 di paling bawah, Level semakin tinggi semakin ke atas
+        const idxFromTop = totalNodesToShow - lvl;
+        const y = topPadding + idxFromTop * rowHeight;
+        const x = xPattern[(lvl - 1) % xPattern.length];
+        const biome = BIOMES[(lvl - 1) % BIOMES.length];
+        const quota = Math.max(2, Math.round((4 + Math.floor((lvl - 1) * 1.1) + Math.floor((lvl - 1) / 4)) * 0.4));
+        const status = lvl < highestLvl ? 'completed' : (lvl === highestLvl ? 'unlocked' : 'locked');
+        const isCurrentSelected = lvl === activeLvl;
+        const rec = (state.levelRecords && state.levelRecords[lvl]) || null;
+
+        nodes.push({
+          lvl,
+          x,
+          y,
+          biome,
+          quota,
+          status,
+          isCurrentSelected,
+          rec
+        });
+      }
+
+      // 1. Buat SVG Jalur Jalan & Konektor Bezier Antar Level
+      let svgPaths = '';
+      for (let i = 0; i < nodes.length - 1; i++) {
+        const curr = nodes[i];
+        const next = nodes[i + 1];
+        const midY = (curr.y + next.y) / 2;
+        const pathData = `M ${curr.x} ${curr.y} C ${curr.x} ${midY}, ${next.x} ${midY}, ${next.x} ${next.y}`;
+
+        // Aspal dasar (Roadbed)
+        svgPaths += `<path d="${pathData}" fill="none" stroke="rgba(15, 23, 42, 0.9)" stroke-width="14" stroke-linecap="round" />`;
+
+        if (next.lvl <= highestLvl) {
+          // Jalur yang sudah terbuka / dilewati (Hijau Emerald / Cyan)
+          const strokeCol = next.lvl === activeLvl ? '#22d3ee' : '#10b981';
+          svgPaths += `<path d="${pathData}" fill="none" stroke="${strokeCol}" stroke-width="5" stroke-linecap="round" opacity="0.9" />`;
+          svgPaths += `<path d="${pathData}" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-dasharray="4 6" stroke-linecap="round" opacity="0.65" />`;
+        } else {
+          // Jalur yang masih terkunci (Putus-putus abu gelap)
+          svgPaths += `<path d="${pathData}" fill="none" stroke="#334155" stroke-width="3.5" stroke-dasharray="6 6" stroke-linecap="round" />`;
+        }
+      }
+
+      // 2. Buat HTML setiap Node Level beserta Kartu Info Mini di Sampingnya
+      let nodesHtml = '';
+      nodes.forEach(n => {
+        const isLeftNode = n.x <= 150;
+        // Letakkan label di kanan jika node agak di kiri, atau di kiri jika node di kanan
+        const cardAlignStyle = n.x < 120
+          ? `left: ${n.x + 34}px; text-align: left;`
+          : (n.x > 180
+              ? `right: ${width - n.x + 34}px; text-align: right;`
+              : (n.lvl % 2 === 1 ? `left: ${n.x + 34}px; text-align: left;` : `right: ${width - n.x + 34}px; text-align: right;`));
+
+        let nodeCircleClass = '';
+        let nodeInnerHtml = '';
+        let statusSubHtml = '';
+        const canSelect = n.lvl <= highestLvl;
+
+        if (n.isCurrentSelected) {
+          nodeCircleClass = 'bg-gradient-to-tr from-cyan-500 to-blue-600 border-2 border-white text-white active-node-pulse shadow-xl shadow-cyan-500/50 scale-110';
+          nodeInnerHtml = `<span class="text-xs font-black font-mono">${n.lvl}</span>`;
+          const starCount = n.rec ? n.rec.stars : (n.lvl < highestLvl ? 5 : 0);
+          statusSubHtml = starCount > 0
+            ? `<span class="text-[9px] font-bold text-amber-400 block">${'★'.repeat(starCount)} • Aktif</span>`
+            : `<span class="text-[9px] font-black text-cyan-300 uppercase tracking-wider block">📍 Posisi Saat Ini</span>`;
+        } else if (n.status === 'completed') {
+          nodeCircleClass = 'bg-emerald-600/90 hover:bg-emerald-500 border-2 border-emerald-300 text-white shadow-lg shadow-emerald-950/60 hover:scale-105';
+          nodeInnerHtml = `<i class="fa-solid fa-check text-xs"></i>`;
+          const starCount = n.rec && n.rec.stars ? n.rec.stars : 5;
+          statusSubHtml = `<span class="text-[9px] text-amber-400 font-bold block">${'★'.repeat(starCount)} <span class="text-emerald-300 font-mono">Lulus</span></span>`;
+        } else if (n.status === 'unlocked') {
+          nodeCircleClass = 'bg-amber-500/90 hover:bg-amber-400 border-2 border-amber-200 text-slate-950 shadow-lg shadow-amber-950/60 hover:scale-105';
+          nodeInnerHtml = `<span class="text-xs font-black font-mono">${n.lvl}</span>`;
+          statusSubHtml = `<span class="text-[9px] font-bold text-amber-300 block">Terbuka • ${n.quota} Paket</span>`;
+        } else {
+          nodeCircleClass = 'bg-slate-800/90 border-2 border-slate-700 text-slate-500 opacity-75 cursor-not-allowed';
+          nodeInnerHtml = `<i class="fa-solid fa-lock text-[10px]"></i>`;
+          statusSubHtml = `<span class="text-[9px] text-slate-500 font-semibold block">Target: ${n.quota} Paket</span>`;
+        }
+
+        // Indikator Truk Kurir Melayang di Atas Node yang Sedang Aktif
+        const truckMarkerHtml = n.isCurrentSelected ? `
+          <div class="absolute -top-8 left-1/2 -translate-x-1/2 z-30 pointer-events-none truck-float">
+            <div class="px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 font-black text-[9px] shadow-lg flex items-center gap-1 whitespace-nowrap border border-white">
+              <i class="fa-solid fa-truck-fast text-[10px]"></i>
+              <span>KURIR</span>
+            </div>
+          </div>
+        ` : '';
+
+        nodesHtml += `
+          <div id="track-node-${n.lvl}" class="absolute -translate-x-1/2 -translate-y-1/2 z-10 group" style="left: ${n.x}px; top: ${n.y}px;">
+            ${truckMarkerHtml}
+            <button
+              type="button"
+              onclick="selectLevelFromTrack(${n.lvl})"
+              ${!canSelect ? 'disabled' : ''}
+              title="${canSelect ? `Pilih Level ${n.lvl}: ${n.biome.title}` : `Level ${n.lvl} Belum Terbuka`}"
+              class="w-11 h-11 rounded-2xl flex items-center justify-center transition-all duration-200 ${nodeCircleClass} ${canSelect ? 'cursor-pointer' : 'cursor-not-allowed'}"
+            >
+              ${nodeInnerHtml}
+            </button>
+          </div>
+
+          <div
+            onclick="${canSelect ? `selectLevelFromTrack(${n.lvl})` : ''}"
+            class="absolute -translate-y-1/2 z-10 w-[124px] p-2 rounded-xl border transition-all ${
+              n.isCurrentSelected
+                ? 'bg-cyan-950/90 border-cyan-400/80 shadow-lg shadow-cyan-950/50'
+                : canSelect
+                ? 'bg-slate-900/85 hover:bg-slate-800/90 border-slate-700/80 cursor-pointer'
+                : 'bg-slate-950/65 border-slate-800/60 opacity-60'
+            }"
+            style="top: ${n.y}px; ${cardAlignStyle}"
+          >
+            <div class="flex items-center gap-1 ${ cardAlignStyle.includes('right:') ? 'justify-end' : 'justify-start' }">
+              <span class="text-[9px] font-black font-mono px-1.5 py-0.2 rounded ${n.biome.badgeClass} border">L${n.lvl}</span>
+              <span class="text-[10px] font-extrabold text-white truncate">${n.biome.title}</span>
+            </div>
+            ${statusSubHtml}
+          </div>
+        `;
+      });
+
+      canvasEl.innerHTML = `
+        <svg class="absolute inset-0 w-full h-full pointer-events-none" width="${width}" height="${totalHeight}" viewBox="0 0 ${width} ${totalHeight}">
+          ${svgPaths}
+        </svg>
+        ${nodesHtml}
+      `;
+
+      if (autoScroll) {
+        setTimeout(() => scrollToActiveTrackNode(activeLvl), 60);
+      }
+    }
+
+    function scrollToActiveTrackNode(lvlId) {
+      const targetLvl = lvlId || state.nextLevelToLoad || state.level || 1;
+      const scrollContainer = document.getElementById('level-track-scroll');
+      const nodeEl = document.getElementById(`track-node-${targetLvl}`);
+      if (scrollContainer && nodeEl) {
+        const nodeTop = nodeEl.offsetTop;
+        const containerHeight = scrollContainer.clientHeight;
+        scrollContainer.scrollTo({
+          top: Math.max(0, nodeTop - containerHeight / 2),
+          behavior: 'smooth'
+        });
+      }
+    }
+
+    // Memungkinkan pemain mengklik level mana saja yang sudah terbuka di Peta Jalur Kiri
+    window.selectLevelFromTrack = function(lvlId) {
+      const highestLvl = Math.max(state.highestUnlockedLevel || 1, state.level || 1);
+      if (lvlId > highestLvl) {
+        sound.playBeep(220, 0.15, 'sawtooth', 0.1);
+        showToast(`🔒 Level ${lvlId} masih terkunci! Selesaikan Level ${highestLvl} terlebih dahulu.`, 'warning');
+        return;
+      }
+
+      sound.playBeep(620, 0.08, 'triangle', 0.12);
+      state.nextLevelToLoad = null;
+      loadLevelSession(lvlId);
+      saveGameData();
+      renderLevelTrackMap(false);
+      showToast(`🗺️ Distrik dipilih: Level ${lvlId} (${state.currentLevelConfig.title})`, 'success');
+    };
+
+    const btnCenterTrack = document.getElementById('btn-center-track');
+    if (btnCenterTrack) {
+      btnCenterTrack.addEventListener('click', () => {
+        scrollToActiveTrackNode(state.nextLevelToLoad || state.level || 1);
+      });
+    }
+
+    /* =========================================================================
+       4. PEMBANGUNAN OBJEK 3D & PROP KOTA
+       ========================================================================= */
     function addBoxCollider(x, z, w, d) {
       colliders.push({
         type: 'box',
@@ -1134,14 +2133,11 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       colliders.push({ type: 'circle', x, z, r });
     }
 
-    // Validasi apakah titik (x, z) aman untuk menaruh pohon/batu/rintangan
     function isSafePropPosition(x, z, cfg, minMargin = 3.2) {
-      // 1. Jangan pernah menaruh objek di dekat titik Spawn Mobil atau Loading Bay Gudang!
       if (Math.hypot(x - SPAWN_POS.x, z - SPAWN_POS.z) < 13) return false;
       if (Math.hypot(x - warehouseBayPos.x, z - warehouseBayPos.z) < 12) return false;
       if (Math.hypot(x - warehouseBuildingPos.x, z - warehouseBuildingPos.z) < 15) return false;
 
-      // 2. Jangan menaruh objek di atas jalan raya (Aspal, Beton, Tanah)
       for (const r of cfg.roads) {
         if (
           x >= r.minX - minMargin && x <= r.maxX + minMargin &&
@@ -1151,7 +2147,6 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
         }
       }
 
-      // 3. Jangan menabrak bangunan rumah atau lingkaran Drop Zone warga
       for (const h of cfg.houses) {
         if (Math.hypot(x - h.x, z - h.z) < 9.5) return false;
         if (Math.hypot(x - h.dropX, z - h.dropZ) < 6.5) return false;
@@ -1187,7 +2182,6 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       arm.rotation.z = -Math.PI / 3;
       npc.add(arm);
 
-      // Floating Label Sprite di atas NPC
       const c = document.createElement('canvas');
       c.width = 256;
       c.height = 96;
@@ -1212,6 +2206,880 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       worldGroup.add(npc);
 
       return { group: npc, arm, sprite, houseId };
+    }
+
+    function createCivilianCarMesh(color = 0xdc2626, isAngkot = false, isMotorcycle = false) {
+      const group = new THREE.Group();
+
+      if (isMotorcycle) {
+        const bodyMat = new THREE.MeshLambertMaterial({ color: color || 0x2563eb });
+        const darkMat = new THREE.MeshLambertMaterial({ color: 0x1e293b });
+        const frame = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.65, 2.3), bodyMat);
+        frame.position.y = 0.85;
+        frame.castShadow = true;
+        group.add(frame);
+
+        const handlebar = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.1, 0.12), darkMat);
+        handlebar.position.set(0, 1.45, 0.7);
+        group.add(handlebar);
+
+        const wGeo = new THREE.CylinderGeometry(0.44, 0.44, 0.22, 12);
+        wGeo.rotateZ(Math.PI / 2);
+        const wMat = new THREE.MeshLambertMaterial({ color: 0x0f172a });
+        const frontWheel = new THREE.Mesh(wGeo, wMat);
+        frontWheel.position.set(0, 0.44, 0.9);
+        group.add(frontWheel);
+
+        const rearWheel = new THREE.Mesh(wGeo, wMat);
+        rearWheel.position.set(0, 0.44, -0.9);
+        group.add(rearWheel);
+
+        const riderTorso = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.42, 0.9, 8), new THREE.MeshLambertMaterial({ color: 0x15803d }));
+        riderTorso.position.set(0, 1.45, -0.15);
+        riderTorso.rotation.x = 0.2;
+        group.add(riderTorso);
+
+        const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.36, 10, 10), new THREE.MeshLambertMaterial({ color: 0xf59e0b }));
+        helmet.position.set(0, 2.05, -0.05);
+        group.add(helmet);
+
+        const visor = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.16, 0.25), darkMat);
+        visor.position.set(0, 2.05, 0.18);
+        group.add(visor);
+
+        const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.22, 0.1), new THREE.MeshBasicMaterial({ color: 0xfef08a }));
+        lamp.position.set(0, 1.15, 1.18);
+        group.add(lamp);
+
+        return { group, wheels: [frontWheel, rearWheel] };
+      }
+
+      if (isAngkot) {
+        const bodyMat = new THREE.MeshLambertMaterial({ color: color || 0x059669 });
+        const stripeMat = new THREE.MeshLambertMaterial({ color: 0xfacc15 });
+        const darkMat = new THREE.MeshLambertMaterial({ color: 0x1e293b });
+        const wMat = new THREE.MeshLambertMaterial({ color: 0x0f172a });
+
+        const chassis = new THREE.Mesh(new THREE.BoxGeometry(2.35, 0.9, 4.3), bodyMat);
+        chassis.position.y = 0.95;
+        chassis.castShadow = true;
+        group.add(chassis);
+
+        const stripe = new THREE.Mesh(new THREE.BoxGeometry(2.38, 0.28, 4.32), stripeMat);
+        stripe.position.y = 1.35;
+        group.add(stripe);
+
+        const cabin = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.3, 4.0), bodyMat);
+        cabin.position.set(0, 2.0, -0.05);
+        cabin.castShadow = true;
+        group.add(cabin);
+
+        const sideWindowL = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 0.65), darkMat);
+        sideWindowL.position.set(-1.12, 2.1, -0.1);
+        sideWindowL.rotation.y = -Math.PI / 2;
+        group.add(sideWindowL);
+
+        const sideWindowR = new THREE.Mesh(new THREE.PlaneGeometry(2.5, 0.65), darkMat);
+        sideWindowR.position.set(1.12, 2.1, -0.6);
+        sideWindowR.rotation.y = Math.PI / 2;
+        group.add(sideWindowR);
+
+        const frontWindshield = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 0.75), darkMat);
+        frontWindshield.position.set(0, 2.05, 1.96);
+        group.add(frontWindshield);
+
+        const roofRack = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.2, 2.4), darkMat);
+        roofRack.position.set(0, 2.75, -0.4);
+        group.add(roofRack);
+
+        const wheels = [];
+        const wGeo = new THREE.CylinderGeometry(0.44, 0.44, 0.35, 12);
+        wGeo.rotateZ(Math.PI / 2);
+        [[-1.2, 0.45, 1.3], [1.2, 0.45, 1.3], [-1.2, 0.45, -1.3], [1.2, 0.45, -1.3]].forEach(p => {
+          const w = new THREE.Mesh(wGeo, wMat);
+          w.position.set(p[0], p[1], p[2]);
+          group.add(w);
+          wheels.push(w);
+        });
+
+        const headL = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.25, 0.1), new THREE.MeshBasicMaterial({ color: 0xfef08a }));
+        headL.position.set(-0.8, 1.0, 2.16);
+        const headR = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.25, 0.1), new THREE.MeshBasicMaterial({ color: 0xfef08a }));
+        headR.position.set(0.8, 1.0, 2.16);
+        group.add(headL);
+        group.add(headR);
+
+        const hazardMat = new THREE.MeshBasicMaterial({ color: 0xf97316 });
+        const blinkerF = new THREE.Mesh(new THREE.BoxGeometry(2.36, 0.18, 0.12), hazardMat);
+        blinkerF.position.set(0, 0.65, 2.16);
+        const blinkerR = new THREE.Mesh(new THREE.BoxGeometry(2.36, 0.18, 0.12), hazardMat);
+        blinkerR.position.set(0, 0.65, -2.16);
+        group.add(blinkerF);
+        group.add(blinkerR);
+
+        return { group, wheels, blinkerMat: hazardMat };
+      }
+
+      const bodyMat = new THREE.MeshLambertMaterial({ color: color || 0xdc2626 });
+      const cabinMat = new THREE.MeshLambertMaterial({ color: 0x1e293b });
+      const wMat = new THREE.MeshLambertMaterial({ color: 0x0f172a });
+
+      const chassis = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.85, 4.0), bodyMat);
+      chassis.position.y = 0.88;
+      chassis.castShadow = true;
+      group.add(chassis);
+
+      const cabin = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.85, 2.1), cabinMat);
+      cabin.position.set(0, 1.68, -0.1);
+      cabin.castShadow = true;
+      group.add(cabin);
+
+      const wheels = [];
+      const wGeo = new THREE.CylinderGeometry(0.42, 0.42, 0.32, 12);
+      wGeo.rotateZ(Math.PI / 2);
+      [[-1.2, 0.42, 1.25], [1.2, 0.42, 1.25], [-1.2, 0.42, -1.25], [1.2, 0.42, -1.25]].forEach(p => {
+        const w = new THREE.Mesh(wGeo, wMat);
+        w.position.set(p[0], p[1], p[2]);
+        group.add(w);
+        wheels.push(w);
+      });
+
+      const frontL = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.22, 0.1), new THREE.MeshBasicMaterial({ color: 0xfef08a }));
+      frontL.position.set(-0.75, 0.95, 2.01);
+      const frontR = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.22, 0.1), new THREE.MeshBasicMaterial({ color: 0xfef08a }));
+      frontR.position.set(0.75, 0.95, 2.01);
+      group.add(frontL);
+      group.add(frontR);
+
+      const rearL = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.2, 0.1), new THREE.MeshBasicMaterial({ color: 0xef4444 }));
+      rearL.position.set(-0.75, 0.95, -2.01);
+      const rearR = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.2, 0.1), new THREE.MeshBasicMaterial({ color: 0xef4444 }));
+      rearR.position.set(0.75, 0.95, -2.01);
+      group.add(rearL);
+      group.add(rearR);
+
+      return { group, wheels };
+    }
+
+    function createAssistanceVehicleMesh() {
+      const group = new THREE.Group();
+      const bodyMat = new THREE.MeshLambertMaterial({ color: 0xf59e0b }); // Kuning Rescue / Derek
+      const cabinMat = new THREE.MeshLambertMaterial({ color: 0xf8fafc }); // Putih
+      const darkMat = new THREE.MeshLambertMaterial({ color: 0x1e293b });
+      const wMat = new THREE.MeshLambertMaterial({ color: 0x0f172a });
+      const hazardStripeMat = new THREE.MeshBasicMaterial({ color: 0xdc2626 });
+
+      // Sasis dasar truk derek bantuan
+      const chassis = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.9, 4.8), bodyMat);
+      chassis.position.y = 0.95;
+      chassis.castShadow = true;
+      group.add(chassis);
+
+      // Striping hazard merah
+      const stripe = new THREE.Mesh(new THREE.BoxGeometry(2.44, 0.25, 4.84), hazardStripeMat);
+      stripe.position.y = 0.85;
+      group.add(stripe);
+
+      // Kabin depan
+      const cabin = new THREE.Mesh(new THREE.BoxGeometry(2.3, 1.35, 2.3), cabinMat);
+      cabin.position.set(0, 2.0, 1.05);
+      cabin.castShadow = true;
+      group.add(cabin);
+
+      const frontGlass = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 0.75), darkMat);
+      frontGlass.position.set(0, 2.05, 2.21);
+      group.add(frontGlass);
+
+      const sideGlassL = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.65), darkMat);
+      sideGlassL.position.set(-1.16, 2.1, 1.05);
+      sideGlassL.rotation.y = -Math.PI / 2;
+      group.add(sideGlassL);
+
+      const sideGlassR = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.65), darkMat);
+      sideGlassR.position.set(1.16, 2.1, 1.05);
+      sideGlassR.rotation.y = Math.PI / 2;
+      group.add(sideGlassR);
+
+      // Lengan derek / Crane boom di bak belakang
+      const craneArm = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.38, 2.6), darkMat);
+      craneArm.position.set(0, 2.2, -1.2);
+      craneArm.rotation.x = -Math.PI / 5;
+      craneArm.castShadow = true;
+      group.add(craneArm);
+
+      const craneHook = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.9, 8), darkMat);
+      craneHook.position.set(0, 1.5, -2.1);
+      group.add(craneHook);
+
+      // Lightbar strobo darurat (Biru & Oranye/Merah)
+      const lightbarBase = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.15, 0.4), darkMat);
+      lightbarBase.position.set(0, 2.75, 1.05);
+      group.add(lightbarBase);
+
+      const sirenBlueMat = new THREE.MeshBasicMaterial({ color: 0x2563eb });
+      const sirenAmberMat = new THREE.MeshBasicMaterial({ color: 0xf97316 });
+
+      const sirenL = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.3, 0.32), sirenBlueMat);
+      sirenL.position.set(-0.45, 2.95, 1.05);
+      group.add(sirenL);
+
+      const sirenR = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.3, 0.32), sirenAmberMat);
+      sirenR.position.set(0.45, 2.95, 1.05);
+      group.add(sirenR);
+
+      // Roda
+      const wheels = [];
+      const wGeo = new THREE.CylinderGeometry(0.46, 0.46, 0.38, 12);
+      wGeo.rotateZ(Math.PI / 2);
+      [[-1.25, 0.46, 1.4], [1.25, 0.46, 1.4], [-1.25, 0.46, -1.4], [1.25, 0.46, -1.4]].forEach(p => {
+        const w = new THREE.Mesh(wGeo, wMat);
+        w.position.set(p[0], p[1], p[2]);
+        group.add(w);
+        wheels.push(w);
+      });
+
+      // Lampu depan
+      const headL = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.25, 0.1), new THREE.MeshBasicMaterial({ color: 0xfef08a }));
+      headL.position.set(-0.8, 1.0, 2.41);
+      const headR = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.25, 0.1), new THREE.MeshBasicMaterial({ color: 0xfef08a }));
+      headR.position.set(0.8, 1.0, 2.41);
+      group.add(headL);
+      group.add(headR);
+
+      return { group, wheels, sirenL, sirenR, sirenBlueMat, sirenAmberMat };
+    }
+
+    function createPedestrianMesh(shirtColor = 0x0284c7) {
+      const group = new THREE.Group();
+      const shirtMat = new THREE.MeshLambertMaterial({ color: shirtColor });
+      const skinMat = new THREE.MeshLambertMaterial({ color: 0xfde68a });
+      const pantsMat = new THREE.MeshLambertMaterial({ color: 0x1e293b });
+
+      const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.5, 1.1, 10), shirtMat);
+      torso.position.y = 1.35;
+      torso.castShadow = true;
+      group.add(torso);
+
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.38, 12, 12), skinMat);
+      head.position.y = 2.25;
+      head.castShadow = true;
+      group.add(head);
+
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.44, 0.44, 0.18, 10), new THREE.MeshLambertMaterial({ color: 0xd97706 }));
+      cap.position.set(0, 2.5, 0.08);
+      group.add(cap);
+
+      const legGeo = new THREE.BoxGeometry(0.24, 0.82, 0.26);
+      legGeo.translate(0, -0.41, 0);
+
+      const leftLegGroup = new THREE.Group();
+      leftLegGroup.position.set(-0.2, 0.82, 0);
+      const leftLegMesh = new THREE.Mesh(legGeo, pantsMat);
+      leftLegMesh.castShadow = true;
+      leftLegGroup.add(leftLegMesh);
+      group.add(leftLegGroup);
+
+      const rightLegGroup = new THREE.Group();
+      rightLegGroup.position.set(0.2, 0.82, 0);
+      const rightLegMesh = new THREE.Mesh(legGeo, pantsMat);
+      rightLegMesh.castShadow = true;
+      rightLegGroup.add(rightLegMesh);
+      group.add(rightLegGroup);
+
+      const armGeo = new THREE.CylinderGeometry(0.11, 0.11, 0.75, 8);
+      armGeo.translate(0, -0.37, 0);
+
+      const leftArmGroup = new THREE.Group();
+      leftArmGroup.position.set(-0.54, 1.8, 0);
+      const leftArmMesh = new THREE.Mesh(armGeo, skinMat);
+      leftArmGroup.add(leftArmMesh);
+      group.add(leftArmGroup);
+
+      const rightArmGroup = new THREE.Group();
+      rightArmGroup.position.set(0.54, 1.8, 0);
+      const rightArmMesh = new THREE.Mesh(armGeo, skinMat);
+      rightArmGroup.add(rightArmMesh);
+      group.add(rightArmGroup);
+
+      return { group, leftLeg: leftLegGroup, rightLeg: rightLegGroup, leftArm: leftArmGroup, rightArm: rightArmGroup };
+    }
+
+    function createAnimalMesh(type = 'cat') {
+      const group = new THREE.Group();
+
+      if (type === 'cat') {
+        const catMat = new THREE.MeshLambertMaterial({ color: 0xf97316 });
+        const whiteMat = new THREE.MeshLambertMaterial({ color: 0xfef08a });
+
+        const body = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.45, 0.95), catMat);
+        body.position.y = 0.45;
+        body.castShadow = true;
+        group.add(body);
+
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 10, 10), catMat);
+        head.position.set(0, 0.65, 0.55);
+        head.castShadow = true;
+        group.add(head);
+
+        const earGeo = new THREE.ConeGeometry(0.1, 0.22, 4);
+        const earL = new THREE.Mesh(earGeo, catMat);
+        earL.position.set(-0.16, 0.92, 0.55);
+        const earR = new THREE.Mesh(earGeo, catMat);
+        earR.position.set(0.16, 0.92, 0.55);
+        group.add(earL);
+        group.add(earR);
+
+        const tailGeo = new THREE.CylinderGeometry(0.06, 0.05, 0.6, 6);
+        tailGeo.translate(0, 0.3, 0);
+        const tailGroup = new THREE.Group();
+        tailGroup.position.set(0, 0.55, -0.45);
+        tailGroup.rotation.x = -Math.PI / 3;
+        const tailMesh = new THREE.Mesh(tailGeo, catMat);
+        tailGroup.add(tailMesh);
+        group.add(tailGroup);
+
+        const pawGeo = new THREE.CylinderGeometry(0.08, 0.08, 0.3, 6);
+        pawGeo.translate(0, -0.15, 0);
+        const paws = [];
+        [[-0.2, 0.3, 0.3], [0.2, 0.3, 0.3], [-0.2, 0.3, -0.3], [0.2, 0.3, -0.3]].forEach(p => {
+          const pawGroup = new THREE.Group();
+          pawGroup.position.set(p[0], p[1], p[2]);
+          const m = new THREE.Mesh(pawGeo, whiteMat);
+          pawGroup.add(m);
+          group.add(pawGroup);
+          paws.push(pawGroup);
+        });
+
+        return { group, tail: tailGroup, paws };
+      }
+
+      const whiteMat = new THREE.MeshLambertMaterial({ color: 0xf8fafc });
+      const redMat = new THREE.MeshLambertMaterial({ color: 0xef4444 });
+      const yellowMat = new THREE.MeshLambertMaterial({ color: 0xfacc15 });
+
+      const body = new THREE.Mesh(new THREE.SphereGeometry(0.38, 10, 10), whiteMat);
+      body.scale.set(0.8, 0.9, 1.2);
+      body.position.y = 0.55;
+      body.castShadow = true;
+      group.add(body);
+
+      const headGroup = new THREE.Group();
+      headGroup.position.set(0, 0.85, 0.38);
+
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8), whiteMat);
+      headGroup.add(head);
+
+      const comb = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.22, 0.24), redMat);
+      comb.position.set(0, 0.22, 0);
+      headGroup.add(comb);
+
+      const beak = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.22, 4), yellowMat);
+      beak.rotation.x = Math.PI / 2;
+      beak.position.set(0, 0, 0.22);
+      headGroup.add(beak);
+
+      group.add(headGroup);
+
+      const legMat = new THREE.MeshBasicMaterial({ color: 0xf59e0b });
+      const legL = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.32, 6), legMat);
+      legL.position.set(-0.14, 0.16, 0);
+      const legR = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.32, 6), legMat);
+      legR.position.set(0.14, 0.16, 0);
+      group.add(legL);
+      group.add(legR);
+
+      return { group, head: headGroup };
+    }
+
+    function spawnImpactSprite(text, x, z) {
+      const c = document.createElement('canvas');
+      c.width = 256;
+      c.height = 80;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#dc2626';
+      ctx.beginPath();
+      ctx.roundRect(6, 6, 244, 68, 16);
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 4;
+      ctx.stroke();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '900 28px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, 128, 40);
+
+      const tex = new THREE.CanvasTexture(c);
+      const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 1.0, depthTest: false });
+      const sprite = new THREE.Sprite(mat);
+      sprite.position.set(x, 3.2, z);
+      sprite.scale.set(4.8, 1.5, 1);
+      worldGroup.add(sprite);
+
+      floatingImpactLabels.push({
+        sprite,
+        mat,
+        spawnTime: performance.now()
+      });
+    }
+
+    let assistanceUnit = null;
+
+    function dispatchAssistanceVehicle(accidentObs, now) {
+      if (!accidentObs || !accidentObs.group) return;
+      if (assistanceUnit && assistanceUnit.targetObs === accidentObs && assistanceUnit.state !== 'departing') return;
+
+      if (assistanceUnit && assistanceUnit.group) {
+        worldGroup.remove(assistanceUnit.group);
+      }
+
+      const created = createAssistanceVehicleMesh();
+      const group = created.group;
+
+      // Spawn langsung di jalan tepat 6.5 meter di belakang kendaraan yang tertimpa masalah/macet
+      const targetPos = accidentObs.group.position;
+      const targetRot = accidentObs.group.rotation.y || 0;
+      const spawnOffset = 6.5;
+      const spawnX = targetPos.x - Math.sin(targetRot) * spawnOffset;
+      const spawnZ = targetPos.z - Math.cos(targetRot) * spawnOffset;
+      group.position.set(spawnX, 0, spawnZ);
+      group.rotation.y = targetRot;
+
+      worldGroup.add(group);
+      sound.playEmergencySiren();
+
+      assistanceUnit = {
+        group,
+        wheels: created.wheels,
+        sirenL: created.sirenL,
+        sirenR: created.sirenR,
+        sirenBlueMat: created.sirenBlueMat,
+        sirenAmberMat: created.sirenAmberMat,
+        targetObs: accidentObs,
+        state: 'responding', // 'responding' -> 'clearing' -> 'departing'
+        spawnTime: now,
+        arriveTime: 0,
+        clearStartTime: 0,
+        lastSirenSound: now,
+        speed: 0.32
+      };
+
+      showToast('🚨 MOBIL BANTUAN DIKIRIM! Unit Derek meluncur ke lokasi untuk mengurai kemacetan...', 'warning');
+    }
+
+    function updateAssistanceUnit(now) {
+      if (!assistanceUnit || !assistanceUnit.group) return;
+
+      const unit = assistanceUnit;
+      const target = unit.targetObs;
+
+      // Animasi Strobo Biru - Oranye / Merah bergantian cepat
+      const blinkStep = Math.floor(now / 90) % 2;
+      unit.sirenBlueMat.color.setHex(blinkStep === 0 ? 0x2563eb : 0x0284c7);
+      unit.sirenAmberMat.color.setHex(blinkStep === 1 ? 0xef4444 : 0xf97316);
+
+      // Sirine darurat berkala saat sedang meluncur
+      if (unit.state === 'responding' && now - unit.lastSirenSound > 2400) {
+        sound.playEmergencySiren();
+        unit.lastSirenSound = now;
+      }
+
+      if (unit.state === 'responding') {
+        if (!target || !target.group) {
+          unit.state = 'departing';
+          unit.departStartTime = now;
+          return;
+        }
+
+        const tx = target.group.position.x;
+        const tz = target.group.position.z;
+        const dx = tx - unit.group.position.x;
+        const dz = tz - unit.group.position.z;
+        const dist = Math.hypot(dx, dz);
+
+        const targetRot = Math.atan2(dx, dz);
+        let diff = targetRot - unit.group.rotation.y;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        unit.group.rotation.y += diff * 0.25;
+
+        if (dist > 3.8) {
+          unit.group.position.x += Math.sin(unit.group.rotation.y) * unit.speed;
+          unit.group.position.z += Math.cos(unit.group.rotation.y) * unit.speed;
+          if (unit.wheels) {
+            unit.wheels.forEach(w => { w.rotation.x += unit.speed * 1.1; });
+          }
+        } else {
+          // Tiba di TKP langsung memulai aksi evakuasi
+          unit.state = 'clearing';
+          unit.clearStartTime = now;
+          sound.playHorn();
+          showToast('🔧 UNIT BANTUAN DI LOKASI! Evakuasi & penguraian kemacetan langsung diproses...', 'info');
+          spawnImpactSprite('🔧 EVAKUASI TKP', target.group.position.x, target.group.position.z);
+        }
+      } else if (unit.state === 'clearing') {
+        // Proses evakuasi cepat hanya 1.2 detik agar lalu lintas langsung kembali berjalan
+        const elapsed = now - unit.clearStartTime;
+        if (target && target.blinkerMat) {
+          const blink = Math.floor(now / 100) % 2 === 0;
+          target.blinkerMat.color.setHex(blink ? 0xf97316 : 0x22c55e);
+        }
+
+        if (elapsed > 1200) {
+          // Selesai evakuasi: SEMUA kendaraan di sekitar (radius 25m) dipulihkan & didorong maju
+          const centerPos = unit.group.position;
+          movingObstacles.forEach(other => {
+            if (other.type === 'vehicle' && other.group) {
+              const d = Math.hypot(other.group.position.x - centerPos.x, other.group.position.z - centerPos.z);
+              if (d < 25) {
+                other.isAccident = false;
+                other.yieldStartTime = 0;
+                other.isYielding = false;
+                other.stalledSeconds = 0;
+                if (other.isAngkot) {
+                  other.angkotState = 'driving';
+                  other.angkotNextStop = now + 12000;
+                }
+                if (other.circuitPath) {
+                  // Dorong maju agar langsung meluncur lancar
+                  other.currentDist = (other.currentDist + Math.max(other.speed * 2.5, 0.4)) % other.circuitPath.totalLen;
+                }
+                if (other.blinkerMat) {
+                  other.blinkerMat.color.setHex(0xf97316);
+                }
+              }
+            }
+          });
+
+          sound.playSuccess();
+          showToast('✅ KEMACETAN TERURAI! Jalur telah dibersihkan & seluruh kendaraan langsung berjalan lancar.', 'success');
+          spawnImpactSprite('✅ JALUR LANCAR', unit.group.position.x, unit.group.position.z);
+
+          unit.state = 'departing';
+          unit.departStartTime = now;
+        }
+      } else if (unit.state === 'departing') {
+        const departElapsed = now - unit.departStartTime;
+        unit.group.position.x += Math.sin(unit.group.rotation.y) * unit.speed * 0.8;
+        unit.group.position.z += Math.cos(unit.group.rotation.y) * unit.speed * 0.8;
+        if (unit.wheels) {
+          unit.wheels.forEach(w => { w.rotation.x += unit.speed * 0.9; });
+        }
+        if (departElapsed > 1800) {
+          worldGroup.remove(unit.group);
+          assistanceUnit = null;
+        }
+      }
+    }
+
+    function onObstacleHit(obs, now) {
+      if (now - state.lastObstacleHitTime < 1500) return;
+      state.lastObstacleHitTime = now;
+
+      const penalty = obs.penalty || 9000;
+      state.totalCash -= penalty;
+      state.levelPenalties += penalty;
+      state.levelEarnedCash -= penalty;
+      saveGameData();
+      refreshCargoUI();
+
+      sound.playCrash();
+      if (obs.type === 'vehicle') {
+        sound.playHorn();
+      } else {
+        sound.playAnimalAlert();
+      }
+
+      state.speed = -0.16;
+      state.screenShakeDuration = 350;
+
+      spawnImpactSprite(`-Rp ${penalty.toLocaleString('id-ID')}`, courierGroup.position.x, courierGroup.position.z);
+
+      let msg = '';
+      if (obs.type === 'vehicle') {
+        msg = `💥 TABRAKAN! ${obs.penaltyName}: -Rp ${penalty.toLocaleString('id-ID')} dipotong dari saldo!`;
+        // Kendaraan memasuki status kecelakaan dan unit bantuan segera dikirimkan
+        obs.isAccident = true;
+        obs.accidentTime = now;
+        dispatchAssistanceVehicle(obs, now);
+      } else if (obs.type === 'pedestrian') {
+        msg = `⚠️ MENABRAK PEJALAN KAKI! ${obs.penaltyName}: -Rp ${penalty.toLocaleString('id-ID')} dipotong dari saldo!`;
+      } else {
+        msg = `🐾 MENABRAK HEWAN! ${obs.penaltyName}: -Rp ${penalty.toLocaleString('id-ID')} dipotong dari saldo!`;
+      }
+      showToast(msg, 'error');
+    }
+
+    function updateMovingObstacles(now) {
+      if (!state.isPlaying || state.isPaused) return;
+
+      const courierPos = courierGroup.position;
+
+      movingObstacles.forEach(obs => {
+        if (obs.type === 'vehicle' && (obs.circuitPath || obs.waypoints)) {
+          let angkotSpeedFactor = 1.0;
+          if (obs.isAngkot) {
+            if (!obs.angkotState) {
+              obs.angkotState = 'driving';
+              obs.angkotNextStop = now + 9000 + Math.random() * 4000;
+            }
+            if (obs.angkotState === 'driving' && now > obs.angkotNextStop) {
+              obs.angkotState = 'stopped';
+              obs.angkotResume = now + 2400;
+            } else if (obs.angkotState === 'stopped') {
+              if (obs.blinkerMat) {
+                const blink = Math.floor(now / 150) % 2 === 0;
+                obs.blinkerMat.color.setHex(blink ? 0xf97316 : 0x451a03);
+              }
+              if (now > obs.angkotResume) {
+                obs.angkotState = 'driving';
+                obs.angkotNextStop = now + 12000 + Math.random() * 5000;
+                if (obs.blinkerMat) obs.blinkerMat.color.setHex(0xf97316);
+              } else {
+                // Jangan pernah berhenti total (0 km/h) yang mengunci mati jalan!
+                // Cukup meluncur pelan (slow cruise) agar mobil di belakang tetap bisa bergerak
+                angkotSpeedFactor = 0.72;
+              }
+            }
+          }
+
+          const toCourierX = courierPos.x - obs.group.position.x;
+          const toCourierZ = courierPos.z - obs.group.position.z;
+          const fwdX = Math.sin(obs.group.rotation.y);
+          const fwdZ = Math.cos(obs.group.rotation.y);
+
+          const forwardDist = toCourierX * fwdX + toCourierZ * fwdZ;
+          const lateralDist = Math.abs(toCourierX * fwdZ - toCourierZ * fwdX);
+
+          // Cek kendaraan di depan
+          let leadVehicleDist = 999;
+          movingObstacles.forEach(other => {
+            if (other === obs || other.type !== 'vehicle' || !other.group) return;
+            const tox = other.group.position.x - obs.group.position.x;
+            const toz = other.group.position.z - obs.group.position.z;
+            const fwd = tox * fwdX + toz * fwdZ;
+            const lat = Math.abs(tox * fwdZ - toz * fwdX);
+            if (fwd > 0 && fwd < 8.0 && lat < 2.2) {
+              if (fwd < leadVehicleDist) leadVehicleDist = fwd;
+            }
+          });
+
+          let moveSpeed = obs.speed * angkotSpeedFactor;
+          let isYieldingForPlayer = false;
+
+          // Hanya perlambat jika kurir player berada tepat di tengah lajur jalan DAN sedang aktif bergerak!
+          // Jika player sedang berhenti/parkir mengantar paket, kendaraan NPC LANGSUNG BERJALAN terus tanpa macet
+          const isPlayerMoving = Math.abs(state.speed) > 0.05;
+          if (forwardDist > 0 && forwardDist < 6.5 && lateralDist < 1.4 && isPlayerMoving) {
+            isYieldingForPlayer = true;
+            if (forwardDist < 3.2) {
+              moveSpeed = Math.max(obs.speed * 0.45, 0.05);
+            } else {
+              const brakeFactor = (forwardDist - 3.2) / 3.3;
+              moveSpeed = obs.speed * (0.5 + brakeFactor * 0.5);
+            }
+          }
+
+          // Jaga jarak aman antar kendaraan: SELALU BERGERAK, tidak pernah 0 km/h!
+          if (leadVehicleDist < 7.0) {
+            if (leadVehicleDist < 3.4) {
+              moveSpeed = Math.min(moveSpeed, Math.max(obs.speed * 0.65, 0.075));
+            } else {
+              const brakeFactor = (leadVehicleDist - 3.4) / 3.6;
+              moveSpeed = Math.min(moveSpeed, obs.speed * (0.7 + brakeFactor * 0.3));
+            }
+          }
+
+          if (obs.isAccident) {
+            moveSpeed = 0;
+            if (obs.blinkerMat) {
+              const blink = Math.floor(now / 130) % 2 === 0;
+              obs.blinkerMat.color.setHex(blink ? 0xf97316 : 0x451a03);
+            }
+            if (now - (obs.accidentTime || 0) > 3500) {
+              obs.isAccident = false;
+            }
+          }
+
+          // Anti-Stall & Anti-Kemacetan Watchdog:
+          // Pastikan setiap kendaraan langsung berjalan dan tidak pernah tersendat di jalur
+          if (!obs.lastRecordedDist) obs.lastRecordedDist = obs.currentDist || 0;
+          if (!obs.lastMoveTime) obs.lastMoveTime = now;
+
+          const distDelta = Math.abs((obs.currentDist || 0) - obs.lastRecordedDist);
+          if (distDelta > 0.35) {
+            obs.lastRecordedDist = obs.currentDist;
+            obs.lastMoveTime = now;
+            obs.stalledSeconds = 0;
+          } else if (now - obs.lastMoveTime > 1100) {
+            // Jika tidak maju selama > 1.1 detik, LANGSUNG BERJALAN: dorong kendaraan maju di sirkuit!
+            obs.stalledSeconds = (obs.stalledSeconds || 0) + 1;
+            if (obs.circuitPath) {
+              obs.currentDist = (obs.currentDist + Math.max(obs.speed * 2.2, 0.30)) % obs.circuitPath.totalLen;
+              obs.lastRecordedDist = obs.currentDist;
+              obs.lastMoveTime = now;
+            }
+
+            // Jika terdeteksi antrean / tersendat lebih dari 2 detik, panggil unit mobil bantuan seketika!
+            if (obs.stalledSeconds >= 2 && !assistanceUnit) {
+              dispatchAssistanceVehicle(obs, now);
+            }
+          }
+
+          if (obs.circuitPath) {
+            if (moveSpeed > 0) {
+              obs.currentDist = (obs.currentDist + moveSpeed) % obs.circuitPath.totalLen;
+              const pt = getPointAtDistance(obs.circuitPath, obs.currentDist);
+              obs.group.position.x = pt.x;
+              obs.group.position.z = pt.z;
+              obs.group.rotation.y = pt.rotY;
+            }
+          } else if (obs.waypoints && obs.waypoints.length > 1) {
+            const wpIdx = obs.currentWpIndex || 0;
+            const targetWp = obs.waypoints[wpIdx];
+            const dx = targetWp.x - obs.group.position.x;
+            const dz = targetWp.z - obs.group.position.z;
+            const dist = Math.hypot(dx, dz);
+
+            if (dist < 1.4) {
+              obs.currentWpIndex = (wpIdx + 1) % obs.waypoints.length;
+            }
+
+            const targetAngle = Math.atan2(dx, dz);
+            let diff = targetAngle - obs.group.rotation.y;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            obs.group.rotation.y += diff * 0.18;
+
+            if (moveSpeed > 0) {
+              obs.group.position.x += Math.sin(obs.group.rotation.y) * moveSpeed;
+              obs.group.position.z += Math.cos(obs.group.rotation.y) * moveSpeed;
+            }
+          }
+
+          if (obs.wheels && moveSpeed > 0) {
+            obs.wheels.forEach(w => {
+              w.rotation.x += moveSpeed * 0.9;
+            });
+          }
+
+          // Tabrakan hanya terjadi bila kurir aktif menabrak atau berada tepat di depan bodi kendaraan
+          const hitDist = Math.hypot(courierPos.x - obs.group.position.x, courierPos.z - obs.group.position.z);
+          if (hitDist < obs.radius + 0.9) {
+            if (!isYieldingForPlayer && (Math.abs(state.speed) > 0.05 || (forwardDist > -0.4 && forwardDist < 2.0 && lateralDist < 1.1))) {
+              onObstacleHit(obs, now);
+            }
+          }
+          return;
+        }
+
+        if (obs.type === 'pedestrian' || obs.type === 'animal') {
+          if (obs.isWaiting) {
+            if (now > obs.waitResumeTime) {
+              obs.isWaiting = false;
+            } else {
+              return;
+            }
+          }
+
+          let isCrossingBlocked = false;
+          const toCourierX = courierPos.x - obs.group.position.x;
+          const toCourierZ = courierPos.z - obs.group.position.z;
+
+          if (obs.crossAxis === 'x') {
+            const aheadX = toCourierX * obs.dir;
+            const latZ = Math.abs(toCourierZ);
+            if (aheadX > -0.6 && aheadX < 5.2 && latZ < 2.5) {
+              isCrossingBlocked = true;
+            }
+          } else {
+            const aheadZ = toCourierZ * obs.dir;
+            const latX = Math.abs(toCourierX);
+            if (aheadZ > -0.6 && aheadZ < 5.2 && latX < 2.5) {
+              isCrossingBlocked = true;
+            }
+          }
+
+          if (isCrossingBlocked) {
+            obs.group.position.y = 0;
+            return;
+          }
+
+          const step = obs.speed * obs.dir;
+          if (obs.crossAxis === 'x') {
+            obs.group.position.x += step;
+            if (obs.dir > 0 && obs.group.position.x >= obs.maxPos) {
+              obs.dir = -1;
+              obs.group.rotation.y = -Math.PI / 2;
+              obs.isWaiting = true;
+              obs.waitResumeTime = now + 1600;
+            } else if (obs.dir < 0 && obs.group.position.x <= obs.minPos) {
+              obs.dir = 1;
+              obs.group.rotation.y = Math.PI / 2;
+              obs.isWaiting = true;
+              obs.waitResumeTime = now + 1600;
+            }
+          } else {
+            obs.group.position.z += step;
+            if (obs.dir > 0 && obs.group.position.z >= obs.maxPos) {
+              obs.dir = -1;
+              obs.group.rotation.y = Math.PI;
+              obs.isWaiting = true;
+              obs.waitResumeTime = now + 1600;
+            } else if (obs.dir < 0 && obs.group.position.z <= obs.minPos) {
+              obs.dir = 1;
+              obs.group.rotation.y = 0;
+              obs.isWaiting = true;
+              obs.waitResumeTime = now + 1600;
+            }
+          }
+
+          if (obs.type === 'pedestrian') {
+            obs.walkCycle = (obs.walkCycle || 0) + 0.16;
+            const legAng = Math.sin(obs.walkCycle) * 0.6;
+            if (obs.leftLeg) obs.leftLeg.rotation.x = legAng;
+            if (obs.rightLeg) obs.rightLeg.rotation.x = -legAng;
+            if (obs.leftArm) obs.leftArm.rotation.x = -legAng;
+            if (obs.rightArm) obs.rightArm.rotation.x = legAng;
+            obs.group.position.y = Math.abs(Math.sin(obs.walkCycle * 2)) * 0.08;
+          } else if (obs.type === 'animal') {
+            obs.walkCycle = (obs.walkCycle || 0) + 0.22;
+            if (obs.tail) {
+              obs.tail.rotation.y = Math.sin(now * 0.015) * 0.45;
+            }
+            if (obs.paws) {
+              obs.paws.forEach((p, idx) => {
+                p.rotation.x = Math.sin(obs.walkCycle + (idx % 2) * Math.PI) * 0.4;
+              });
+            }
+            if (obs.head && obs.subType === 'chicken') {
+              obs.head.position.z = 0.38 + Math.sin(obs.walkCycle * 1.5) * 0.12;
+              obs.group.position.y = Math.abs(Math.sin(obs.walkCycle)) * 0.1;
+            }
+          }
+
+          const hitDist = Math.hypot(courierPos.x - obs.group.position.x, courierPos.z - obs.group.position.z);
+          if (hitDist < obs.radius + 1.5) {
+            onObstacleHit(obs, now);
+          }
+        }
+      });
+
+      for (let i = floatingImpactLabels.length - 1; i >= 0; i--) {
+        const item = floatingImpactLabels[i];
+        const age = now - item.spawnTime;
+        item.sprite.position.y += 0.025;
+        if (age > 600) {
+          item.mat.opacity = Math.max(0, 1 - (age - 600) / 700);
+        }
+        if (age >= 1300) {
+          worldGroup.remove(item.sprite);
+          if (item.mat.map) item.mat.map.dispose();
+          item.mat.dispose();
+          floatingImpactLabels.splice(i, 1);
+        }
+      }
     }
 
     function createPineTree(x, z, scale = 1) {
@@ -1335,6 +3203,12 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       roadSegments = [];
       houses = [];
       npcs = [];
+      movingObstacles = [];
+      floatingImpactLabels = [];
+      if (assistanceUnit && assistanceUnit.group) {
+        worldGroup.remove(assistanceUnit.group);
+      }
+      assistanceUnit = null;
 
       const cfg = (typeof cfgOrLevelId === 'object' && cfgOrLevelId !== null)
         ? cfgOrLevelId
@@ -1342,7 +3216,6 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       scene.background.setHex(cfg.skyColor);
       scene.fog.color.setHex(cfg.skyColor);
 
-      // Ground Rumput / Lantai Distrik
       const ground = new THREE.Mesh(
         new THREE.PlaneGeometry(240, 240),
         new THREE.MeshLambertMaterial({ color: cfg.groundColor })
@@ -1351,20 +3224,19 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       ground.receiveShadow = true;
       worldGroup.add(ground);
 
-      // Bangun Segmen Jalan (Asphalt, Concrete, Dirt)
       cfg.roads.forEach(r => {
         const w = r.maxX - r.minX;
         const l = r.maxZ - r.minZ;
         const cx = (r.minX + r.maxX) / 2;
         const cz = (r.minZ + r.maxZ) / 2;
 
-        let color = 0x272b30; // Aspal
+        let color = 0x272b30;
         let yOffset = 0.025;
         if (r.type === 'concrete') {
-          color = 0x94a3b8; // Beton
+          color = 0x94a3b8;
           yOffset = 0.02;
         } else if (r.type === 'dirt') {
-          color = 0x855836; // Tanah
+          color = 0x855836;
           yOffset = 0.015;
         }
 
@@ -1379,7 +3251,6 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
 
         roadSegments.push(r);
 
-        // Marka Putih Khusus Aspal
         if (r.type === 'asphalt') {
           const isZ = l > w;
           const usableLen = (isZ ? l : w) - 10;
@@ -1402,7 +3273,6 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
         }
       });
 
-      // Bangunan Warehouse Hub
       const whGroup = new THREE.Group();
       const whBody = new THREE.Mesh(
         new THREE.BoxGeometry(16, 8.5, 11),
@@ -1434,7 +3304,6 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       worldGroup.add(whGroup);
       addBoxCollider(warehouseBuildingPos.x, warehouseBuildingPos.z, 16.5, 11.5);
 
-      // Lingkaran Kuning Loading Bay Gudang
       const bayRing = new THREE.Mesh(
         new THREE.RingGeometry(3.2, 4.4, 32),
         new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide })
@@ -1443,7 +3312,6 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       bayRing.position.set(warehouseBayPos.x, 0.04, warehouseBayPos.z);
       worldGroup.add(bayRing);
 
-      // Bangun Rumah Warga + Drop Zone Ring + NPC
       cfg.houses.forEach(h => {
         const hGroup = new THREE.Group();
         const wall = new THREE.Mesh(
@@ -1489,7 +3357,6 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
         });
       });
 
-      // Barikade Batas Jalan (Dijamin tidak pernah muncul di dekat titik Spawn!)
       cfg.barriers.forEach(b => {
         if (Math.hypot(b.x - SPAWN_POS.x, b.z - SPAWN_POS.z) < 14) return;
         const barGroup = new THREE.Group();
@@ -1514,7 +3381,6 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
         addCircleCollider(b.x, b.z, 2.3);
       });
 
-      // Traffic Cones di Bahu Jalan (Obstacle Ringan yang Masuk Akal)
       (cfg.cones || []).forEach(c => {
         if (Math.hypot(c.x - SPAWN_POS.x, c.z - SPAWN_POS.z) < 10) return;
         const cone = new THREE.Mesh(
@@ -1527,17 +3393,14 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
         addCircleCollider(c.x, c.z, 0.65);
       });
 
-      // Lampu Jalan di Sepanjang Jalan Utama
       [-36, -18, 18, 36].forEach(lx => {
         if (isSafePropPosition(lx, -5.5, cfg, 1.0)) createStreetLamp(lx, -5.5);
         if (isSafePropPosition(lx, 5.5, cfg, 1.0)) createStreetLamp(lx, 5.5);
       });
 
-      // Generasi Pepohonan, Bebatuan, dan Kontainer Kargo yang Rapat & Bervariasi (Anti-Boring)
       const leafPalette = [0x2e7d32, 0x43a047, 0x66bb6a, 0xd97706, 0x15803d];
       const containerColors = [0x0284c7, 0xdc2626, 0xd97706, 0x059669, 0x4f46e5];
 
-      // Seeded pseudo-random supaya tata letak prop konsisten namun alami
       let seed = (cfg.id || 1) * 1337;
       const nextRand = () => {
         seed = (seed * 16807) % 2147483647;
@@ -1550,7 +3413,6 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
 
         if (!isSafePropPosition(px, pz, cfg, 3.4)) continue;
 
-        // Hindari menumpuk dengan prop yang sudah dipasang sebelumnya
         let tooClose = false;
         for (const col of colliders) {
           const cx = col.type === 'circle' ? col.x : (col.minX + col.maxX) / 2;
@@ -1566,7 +3428,6 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
         const scale = 0.85 + nextRand() * 0.45;
 
         if (cfg.isIndustrial && roll < 0.35) {
-          // Di level Pelabuhan, perbanyak kontainer kargo industri
           const col = containerColors[Math.floor(nextRand() * containerColors.length)];
           createCargoContainerProp(px, pz, nextRand() > 0.5 ? 0 : Math.PI / 2, col);
         } else if (roll < 0.48) {
@@ -1578,9 +3439,95 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
           createRockCluster(px, pz, scale);
         }
       }
+
+      (cfg.movingObstacles || []).forEach(obsCfg => {
+        let created;
+        if (obsCfg.type === 'vehicle') {
+          created = createCivilianCarMesh(obsCfg.carColor, obsCfg.subType === 'angkot', obsCfg.subType === 'motorcycle');
+        } else if (obsCfg.type === 'pedestrian') {
+          created = createPedestrianMesh(obsCfg.shirtColor);
+        } else if (obsCfg.type === 'animal') {
+          created = createAnimalMesh(obsCfg.subType);
+        }
+
+        if (!created) return;
+
+        const meshGroup = created.group;
+
+        if (obsCfg.type === 'vehicle' && (obsCfg.circuitPath || (obsCfg.waypoints && obsCfg.waypoints.length > 1))) {
+          let initPt;
+          if (obsCfg.circuitPath) {
+            initPt = getPointAtDistance(obsCfg.circuitPath, obsCfg.initialDistance || 0);
+          } else {
+            const startIdx = obsCfg.startWpIndex || 0;
+            const startWp = obsCfg.waypoints[startIdx];
+            const nextIdx = (startIdx + 1) % obsCfg.waypoints.length;
+            const nextWp = obsCfg.waypoints[nextIdx];
+            initPt = {
+              x: startWp.x,
+              z: startWp.z,
+              rotY: Math.atan2(nextWp.x - startWp.x, nextWp.z - startWp.z)
+            };
+          }
+
+          meshGroup.position.set(initPt.x, 0, initPt.z);
+          meshGroup.rotation.y = initPt.rotY;
+
+          worldGroup.add(meshGroup);
+
+          movingObstacles.push({
+            ...obsCfg,
+            group: meshGroup,
+            currentDist: obsCfg.initialDistance || 0,
+            currentWpIndex: obsCfg.startWpIndex ? (obsCfg.startWpIndex + 1) % (obsCfg.waypoints ? obsCfg.waypoints.length : 1) : 0,
+            wheels: created.wheels || null,
+            blinkerMat: created.blinkerMat || null,
+            radius: obsCfg.subType === 'motorcycle' ? 1.2 : (obsCfg.subType === 'angkot' ? 1.7 : 1.6)
+          });
+        } else {
+          const initX = obsCfg.crossAxis === 'x' ? obsCfg.initialPos : obsCfg.fixedPos;
+          const initZ = obsCfg.crossAxis === 'z' ? obsCfg.initialPos : obsCfg.fixedPos;
+
+          meshGroup.position.set(initX, 0, initZ);
+
+          if (obsCfg.crossAxis === 'x') {
+            meshGroup.rotation.y = obsCfg.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
+          } else {
+            meshGroup.rotation.y = obsCfg.dir > 0 ? 0 : Math.PI;
+          }
+
+          worldGroup.add(meshGroup);
+
+          if (obsCfg.hasZebra) {
+            const zebraGroup = new THREE.Group();
+            for (let oz = obsCfg.minPos + 1.2; oz <= obsCfg.maxPos - 1.2; oz += 1.1) {
+              const stripe = new THREE.Mesh(
+                new THREE.PlaneGeometry(2.4, 0.55),
+                new THREE.MeshBasicMaterial({ color: 0xf8fafc })
+              );
+              stripe.rotation.x = -Math.PI / 2;
+              stripe.position.set(obsCfg.fixedPos, 0.038, oz);
+              zebraGroup.add(stripe);
+            }
+            worldGroup.add(zebraGroup);
+          }
+
+          movingObstacles.push({
+            ...obsCfg,
+            group: meshGroup,
+            leftLeg: created.leftLeg || null,
+            rightLeg: created.rightLeg || null,
+            leftArm: created.leftArm || null,
+            rightArm: created.rightArm || null,
+            tail: created.tail || null,
+            paws: created.paws || null,
+            head: created.head || null,
+            radius: obsCfg.type === 'pedestrian' ? 1.3 : 1.0
+          });
+        }
+      });
     }
 
-    
     /* =========================================================================
        PENYIMPANAN LOCALSTORAGE & FUNGSI DEALER TOKO MOBIL
        ========================================================================= */
@@ -1588,7 +3535,10 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       try {
         const data = {
           level: state.level || 1,
+          highestUnlockedLevel: Math.max(state.highestUnlockedLevel || 1, state.level || 1),
+          levelRecords: state.levelRecords || {},
           totalCash: state.totalCash || 0,
+          lastLevelSummary: state.lastLevelSummary || null,
           ownedVehicles: state.ownedVehicles || ['starter_pickup'],
           equippedVehicle: state.equippedVehicle || 'starter_pickup',
           savedAt: Date.now()
@@ -1606,7 +3556,17 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
         const data = JSON.parse(raw);
         if (data && typeof data === 'object') {
           if (typeof data.level === 'number' && data.level >= 1) state.level = data.level;
+          state.highestUnlockedLevel = Math.max(
+            typeof data.highestUnlockedLevel === 'number' ? data.highestUnlockedLevel : 1,
+            state.level || 1
+          );
+          if (data.levelRecords && typeof data.levelRecords === 'object') {
+            state.levelRecords = data.levelRecords;
+          }
           if (typeof data.totalCash === 'number') state.totalCash = data.totalCash;
+          if (data.lastLevelSummary && typeof data.lastLevelSummary === 'object') {
+            state.lastLevelSummary = data.lastLevelSummary;
+          }
           if (Array.isArray(data.ownedVehicles) && data.ownedVehicles.length > 0) {
             state.ownedVehicles = data.ownedVehicles;
           }
@@ -1622,7 +3582,7 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
     }
 
     function resetSaveData() {
-      if (!confirm('Apakah Anda yakin ingin mereset seluruh data lokal?\n\nLevel akan kembali ke 1, total saldo gaji kurir menjadi Rp 0, dan kendaraan kembali ke Carry Pickup 1.0 bawaan.')) {
+      if (!confirm('Apakah Anda yakin ingin mereset seluruh data lokal?\n\nLevel akan kembali ke 1, riwayat peta jalur direset, total saldo gaji kurir menjadi Rp 0, dan kendaraan kembali ke Carry Pickup 1.0 bawaan.')) {
         return;
       }
       try {
@@ -1630,6 +3590,8 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       } catch (e) {}
 
       state.level = 1;
+      state.highestUnlockedLevel = 1;
+      state.levelRecords = {};
       state.totalCash = 0;
       state.ownedVehicles = ['starter_pickup'];
       state.equippedVehicle = 'starter_pickup';
@@ -1638,7 +3600,8 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       loadLevelSession(1);
       saveGameData();
       renderShopCatalog();
-      showToast('🔄 Seluruh data lokal berhasil direset ke Level 1!');
+      renderLevelTrackMap(true);
+      showToast('🔄 Seluruh data lokal & peta jalur berhasil direset ke Level 1!');
     }
 
     function applyEquippedVehicle(vehId) {
@@ -1658,6 +3621,7 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       }
 
       refreshCargoUI();
+      updateSpeedHUD();
 
       if (state.objective === 'warehouse') {
         const actSub = document.getElementById('action-subtext');
@@ -1667,9 +3631,22 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       }
     }
 
+    function updateSpeedHUD() {
+      const surfEl = document.getElementById('surface-label');
+      const speedEl = document.getElementById('hud-speed-kmh');
+      const curVeh = VEHICLES[state.equippedVehicle] || VEHICLES.starter_pickup;
+      const maxKmh = Math.round(60 * (curVeh.speedMult || 1.0));
+      if (surfEl) {
+        surfEl.innerText = `JALAN ASPAL (MAKS ${maxKmh} KM/H)`;
+      }
+      if (speedEl) {
+        const curKmh = Math.round((state.speed || 0) * SPEED_TO_KMH);
+        speedEl.innerText = `${curKmh} km/h`;
+      }
+    }
+
     const shopModal = document.getElementById('shop-modal');
     function toggleShop(forceState) {
-      // Toko HANYA boleh dibuka saat di homepage utama (tidak boleh belanja saat in game)
       const isAtHomepage = !modalScreen.classList.contains('hidden') || !state.isPlaying;
       if (!isAtHomepage) {
         shopModal.classList.add('hidden');
@@ -1734,7 +3711,7 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
           </button>`;
         }
 
-        const topSpeedPercent = Math.round(veh.speedMult * 100);
+        const topSpeedKmh = Math.round(60 * veh.speedMult);
         const accelLabel = veh.acceleration <= 0.035 ? 'Standar' : (veh.acceleration <= 0.045 ? 'Cepat' : (veh.acceleration <= 0.055 ? 'Turbo Nitro' : 'Hyper Drive'));
 
         card.innerHTML = `
@@ -1761,7 +3738,7 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
               </div>
               <div>
                 <span class="text-[8px] sm:text-[9px] uppercase font-bold text-slate-400 block leading-none mb-0.5">Top Speed</span>
-                <span class="text-[11px] sm:text-xs font-black text-cyan-400 font-mono">${topSpeedPercent}%</span>
+                <span class="text-[11px] sm:text-xs font-black text-cyan-400 font-mono">${topSpeedKmh} km/h</span>
               </div>
               <div>
                 <span class="text-[8px] sm:text-[9px] uppercase font-bold text-slate-400 block leading-none mb-0.5">Akselerasi</span>
@@ -1809,10 +3786,11 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       saveGameData();
       refreshCargoUI();
       renderShopCatalog();
+      document.getElementById('stat-salary').innerText = (state.totalCash >= 0 ? 'Rp ' : '-Rp ') + Math.abs(state.totalCash).toLocaleString('id-ID');
     };
 
     /* =========================================================================
-       6. MOBIL KURIR & PANAH NAVIGASI 3D SUPER JELAS (HIGH-VISIBILITY GPS CHEVRON)
+       6. MOBIL KURIR & PANAH NAVIGASI 3D SUPER JELAS
        ========================================================================= */
     const courierGroup = new THREE.Group();
 
@@ -1835,7 +3813,6 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
     cabin.castShadow = true;
     courierGroup.add(cabin);
 
-    // Lampu underglow neon untuk mobil upgrade
     const neonUnderglow = new THREE.PointLight(curVehCfg.glowColor || curVehCfg.chassisColor, curVehCfg.glowIntensity || 0, 7);
     neonUnderglow.position.set(0, 0.4, 0);
     courierGroup.add(neonUnderglow);
@@ -1850,7 +3827,6 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
     });
 
     const packageMeshes = [];
-    // 6 posisi paket kardus di bak kargo (2 baris x 3 tumpuk)
     const boxPositions = [
       [0, 1.80, -0.50],
       [0, 2.65, -0.50],
@@ -1871,10 +3847,8 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       packageMeshes.push(box);
     }
 
-    // Panah Navigasi GPS 3D Super Jelas (Cincin Kompas Gelap + Batang & Kepala Panah Kuning/Hijau Neon Besar)
     const navArrow = new THREE.Group();
 
-    // Cincin Halo Hitam Kontras Tinggi agar Panah Terlihat Jelas di Atas Aspal, Beton, maupun Rumput
     const compassDisc = new THREE.Mesh(
       new THREE.CylinderGeometry(2.1, 2.1, 0.14, 24),
       new THREE.MeshBasicMaterial({ color: 0x0f172a, transparent: true, opacity: 0.82 })
@@ -1889,7 +3863,6 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
     compassRim.position.y = 0.09;
     navArrow.add(compassRim);
 
-    // Batang Panah (Shaft)
     const arrowShaft = new THREE.Mesh(
       new THREE.BoxGeometry(0.95, 0.35, 1.9),
       new THREE.MeshBasicMaterial({ color: 0xfacc15 })
@@ -1897,7 +3870,6 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
     arrowShaft.position.set(0, 0.25, -0.35);
     navArrow.add(arrowShaft);
 
-    // Kepala Panah Lebar & Tegas (Arrowhead) menunjuk ke arah +Z lokal
     const arrowHead = new THREE.Mesh(
       new THREE.ConeGeometry(1.45, 2.2, 4),
       new THREE.MeshBasicMaterial({ color: 0x4ade80 })
@@ -1917,7 +3889,6 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
        7. LOGIKA DETEKSI PERMUKAAN, TABRAKAN SOLID & PEMILIHAN RUMAH ANTI-DUPLIKAT
        ========================================================================= */
     function detectRoadSurface(x, z) {
-      // Prioritas: Aspal > Beton > Tanah > Rumput
       let found = 'offroad';
       for (const r of roadSegments) {
         if (x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ) {
@@ -1948,23 +3919,18 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
     function pickNextRandomHouse() {
       if (houses.length === 0) return;
 
-      // Titik acuan jarak: posisi drop-off rumah sebelumnya atau posisi mobil kurir saat ini
       const refX = state.lastDeliveredDropPos ? state.lastDeliveredDropPos.x : courierGroup.position.x;
       const refZ = state.lastDeliveredDropPos ? state.lastDeliveredDropPos.z : courierGroup.position.z;
 
-      // 1. Filter: Jangan berikan rumah yang baru saja diantarkan
       let candidates = houses.filter(h => h.id !== state.lastDeliveredHouseId);
       if (candidates.length === 0) candidates = houses;
 
-      // 2. Berikan jarak minimum (minimal 26 meter dari titik sebelumnya) agar tujuan tidak bersebelahan langsung
       let farPool = candidates.filter(h => Math.hypot(h.dropPos.x - refX, h.dropPos.z - refZ) >= 26);
 
-      // Jika tidak ada yang >= 26 meter, gunakan batas cadangan 18 meter
       if (farPool.length === 0) {
         farPool = candidates.filter(h => Math.hypot(h.dropPos.x - refX, h.dropPos.z - refZ) >= 18);
       }
 
-      // Jika masih kosong, ambil rumah yang berjarak paling jauh dari titik saat ini
       if (farPool.length === 0) {
         candidates.sort((a, b) => {
           const dA = Math.hypot(a.dropPos.x - refX, a.dropPos.z - refZ);
@@ -1978,13 +3944,10 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       state.targetHouse = chosen;
       state.objective = 'house';
 
-      // Tentukan bobot & spesifikasi paket berdasarkan level & tier
       state.currentPackage = generatePackageSpec(state.level);
 
-      // Jarak tempuh nyata ke tujuan baru
       const tripDist = Math.round(Math.hypot(chosen.dropPos.x - refX, chosen.dropPos.z - refZ));
 
-      // Waktu antar paket Time Attack proporsional dengan jarak nyata
       const baseSeconds = Math.max(5, Math.round(tripDist / 6.2));
       const levelOffset = Math.min(3, Math.floor((state.level - 1) * 0.25));
       state.packageTimeLimit = Math.max(5, baseSeconds - levelOffset) + (state.currentPackage ? state.currentPackage.timeBonus : 0);
@@ -2040,10 +4003,9 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
           timerEl.className = 'text-base md:text-lg font-black text-rose-200 tracking-tight font-mono';
           badge.innerText = `TELAT ${lateSec}s`;
           badge.className = 'px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-rose-600 text-white shadow animate-pulse';
-          const penalty = lateSec * 750;
+          const penalty = lateSec * 350;
           estPayEl.innerText = `Denda: -Rp ${penalty.toLocaleString('id-ID')}`;
           estPayEl.className = 'text-[10px] font-extrabold text-rose-300 font-mono bg-rose-950/80 px-1.5 py-0.5 rounded border border-rose-500/50';
-          // Solid dark slate background (95% opacity) with prominent crimson border for crystal clear contrast on any terrain
           box.className = 'glass-card px-3.5 py-2 rounded-2xl flex items-center gap-2.5 border-2 border-rose-500 bg-slate-950/95 shadow-xl shadow-rose-950/70 transition-colors';
           iconBox.className = 'w-8 h-8 rounded-xl bg-rose-600/30 border border-rose-400 flex items-center justify-center text-rose-200 transition-colors';
           icon.className = 'fa-solid fa-triangle-exclamation text-sm animate-bounce text-rose-300';
@@ -2051,7 +4013,7 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
         return;
       }
 
-      const pkg = state.currentPackage || { tierName: 'Ringan', weightKg: 2.0, deliveryFee: 3500, penaltyPerSec: 180, icon: 'fa-box' };
+      const pkg = state.currentPackage || { tierName: 'Ringan', weightKg: 2.0, deliveryFee: 3500, penaltyPerSec: 100, icon: 'fa-box' };
 
       if (state.packageTimeLeft >= 0) {
         label.innerText = 'WAKTU ANTAR';
@@ -2102,8 +4064,6 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       }
     }
 
-
-
     function refreshCargoUI() {
       document.getElementById('hud-cargo').innerText = `${state.packagesLoaded} / ${state.maxPackages}`;
       document.getElementById('quota-delivered').innerText = state.deliveredCount;
@@ -2117,6 +4077,13 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
         cashEl.className = 'text-base md:text-lg font-black text-rose-400 font-mono animate-pulse';
       }
 
+      const lvlEarnedEl = document.getElementById('hud-level-earned');
+      if (lvlEarnedEl) {
+        const earned = state.levelEarnedCash || 0;
+        lvlEarnedEl.innerText = (earned >= 0 ? 'Lvl: +Rp ' : 'Lvl: -Rp ') + Math.abs(earned).toLocaleString('id-ID');
+        lvlEarnedEl.className = `text-[10px] font-bold font-mono block leading-none mt-0.5 ${earned >= 0 ? 'text-emerald-300' : 'text-rose-400'}`;
+      }
+
       packageMeshes.forEach((m, i) => {
         m.visible = i < state.packagesLoaded;
       });
@@ -2124,16 +4091,43 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       updateTimerUI();
     }
 
-    function showToast(text) {
+    function showToast(text, type = 'auto') {
       const pill = document.getElementById('toast-pill');
-      document.getElementById('toast-text').innerText = text;
+      const box = document.getElementById('toast-box') || pill.firstElementChild;
+      const icon = document.getElementById('toast-icon') || pill.querySelector('i');
+      const textEl = document.getElementById('toast-text');
+
+      let finalType = type;
+      if (finalType === 'auto') {
+        const lower = text.toLowerCase();
+        if (lower.includes('tabrakan') || lower.includes('menabrak') || lower.includes('ganti rugi') || lower.includes('tidak cukup')) {
+          finalType = 'error';
+        } else if (lower.includes('telat') || lower.includes('terlambat') || lower.includes('batas penalti') || lower.includes('terkunci')) {
+          finalType = 'warning';
+        } else {
+          finalType = 'success';
+        }
+      }
+
+      if (finalType === 'error' || finalType === 'danger' || finalType === 'crash') {
+        box.className = 'glass-card w-fit px-5 py-2.5 rounded-full border-2 border-rose-500 bg-rose-950/95 text-rose-200 text-xs md:text-sm font-bold shadow-2xl shadow-rose-950/70 flex items-center gap-2.5 transition-all';
+        icon.className = 'fa-solid fa-triangle-exclamation text-rose-400 text-base animate-bounce';
+      } else if (finalType === 'warning' || finalType === 'late') {
+        box.className = 'glass-card w-fit px-5 py-2.5 rounded-full border-2 border-amber-500 bg-amber-950/95 text-amber-200 text-xs md:text-sm font-bold shadow-2xl shadow-amber-950/70 flex items-center gap-2.5 transition-all';
+        icon.className = 'fa-solid fa-clock text-amber-300 text-base animate-pulse';
+      } else {
+        box.className = 'glass-card w-fit px-5 py-2.5 rounded-full border border-emerald-400/60 bg-slate-900/95 text-emerald-300 text-xs md:text-sm font-bold shadow-xl shadow-emerald-950/40 flex items-center gap-2.5 transition-all';
+        icon.className = 'fa-solid fa-circle-check text-emerald-400 text-base';
+      }
+
+      textEl.innerText = text;
       pill.classList.remove('opacity-0', '-translate-y-3', 'scale-95');
       pill.classList.add('opacity-100', 'translate-y-0', 'scale-100');
       clearTimeout(window._toastTimer);
       window._toastTimer = setTimeout(() => {
         pill.classList.add('opacity-0', '-translate-y-3', 'scale-95');
         pill.classList.remove('opacity-100', 'translate-y-0', 'scale-100');
-      }, 2200);
+      }, 2500);
     }
 
     /* =========================================================================
@@ -2148,9 +4142,9 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       let activeType = null;
 
       if (state.objective === 'warehouse') {
-        if (pos.distanceTo(warehouseBayPos) < 5.0 && state.packagesLoaded < state.maxPackages) {
+        if (pos.distanceTo(warehouseBayPos) < 4.8 && state.packagesLoaded < state.maxPackages) {
           activeType = 'warehouse';
-          document.getElementById('action-subtext').innerText = 'Muat 3 Paket dari Gudang Hub';
+          document.getElementById('action-subtext').innerText = `Muat ${state.maxPackages} Paket dari Gudang Hub`;
           holdBtnLabel.innerText = 'MUAT';
         }
       } else if (state.objective === 'house' && state.targetHouse) {
@@ -2184,13 +4178,15 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
           if (activeType === 'warehouse') {
             const lateRestockSec = Math.max(0, -state.warehouseTimeLeft);
             if (lateRestockSec > 0) {
-              const penalty = lateRestockSec * 750;
+              const penalty = lateRestockSec * 350;
               state.totalCash -= penalty;
+              state.levelPenalties += penalty;
+              state.levelEarnedCash -= penalty;
               sound.playBeep(200, 0.4, 'sawtooth', 0.25);
-              showToast(`⚠️ Telat restock gudang ${lateRestockSec}s! Denda -Rp ${penalty.toLocaleString('id-ID')} dipotong dari gaji!`);
+              showToast(`⚠️ Telat restock gudang ${lateRestockSec}s! Denda -Rp ${penalty.toLocaleString('id-ID')} dipotong dari gaji!`, 'warning');
             } else {
               sound.playSuccess();
-              showToast(`📦 ${state.maxPackages} Paket Berhasil Dimuat Tepat Waktu!`);
+              showToast(`📦 ${state.maxPackages} Paket Berhasil Dimuat Tepat Waktu!`, 'success');
             }
 
             state.packagesLoaded = state.maxPackages;
@@ -2205,29 +4201,31 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
             state.packagesLoaded--;
             state.deliveredCount++;
 
-            const pkg = state.currentPackage || { tierName: 'Ringan', weightKg: 2.0, deliveryFee: 8000, penaltyPerSec: 400 };
+            const pkg = state.currentPackage || { tierName: 'Ringan', weightKg: 2.0, deliveryFee: 8000, penaltyPerSec: 220 };
 
-            // Hitung upah berdasarkan bobot paket dan keterlambatan
             const lateSec = Math.max(0, -state.packageTimeLeft);
             const penalty = lateSec * pkg.penaltyPerSec;
             const netPay = pkg.deliveryFee - penalty;
             state.totalCash += netPay;
+            state.levelGrossPay += pkg.deliveryFee;
+            if (penalty > 0) state.levelPenalties += penalty;
+            state.levelEarnedCash += netPay;
             saveGameData();
 
             refreshCargoUI();
 
             if (netPay >= pkg.deliveryFee) {
               sound.playSuccess();
-              showToast(`🎉 Paket ${pkg.tierName} (${pkg.weightKg} kg) Diterima di ${deliveredName}! Tepat Waktu (+Rp ${netPay.toLocaleString('id-ID')})`);
+              showToast(`🎉 Paket ${pkg.tierName} (${pkg.weightKg} kg) Diterima di ${deliveredName}! Tepat Waktu (+Rp ${netPay.toLocaleString('id-ID')})`, 'success');
             } else if (netPay > 0) {
               sound.playSuccess();
-              showToast(`⏱️ Paket ${pkg.tierName} (${pkg.weightKg} kg) Diterima! Telat ${lateSec}s (+Rp ${netPay.toLocaleString('id-ID')}, Penalti -Rp ${penalty.toLocaleString('id-ID')})`);
+              showToast(`⏱️ Paket ${pkg.tierName} (${pkg.weightKg} kg) Diterima! Telat ${lateSec}s (+Rp ${netPay.toLocaleString('id-ID')}, Penalti -Rp ${penalty.toLocaleString('id-ID')})`, 'warning');
             } else if (netPay === 0) {
               sound.playBeep(320, 0.2, 'triangle', 0.1);
-              showToast(`⏱️ Paket ${pkg.tierName} (${pkg.weightKg} kg) Diterima di batas penalti! Gaji: Rp 0`);
+              showToast(`⏱️ Paket ${pkg.tierName} (${pkg.weightKg} kg) Diterima di batas penalti! Gaji: Rp 0`, 'warning');
             } else {
               sound.playBeep(180, 0.45, 'sawtooth', 0.25);
-              showToast(`⚠️ Terlambat ${lateSec}s di ${deliveredName}! GANTI RUGI KURIR: -Rp ${Math.abs(netPay).toLocaleString('id-ID')} dipotong dari gaji!`);
+              showToast(`⚠️ Terlambat ${lateSec}s di ${deliveredName}! GANTI RUGI KURIR: -Rp ${Math.abs(netPay).toLocaleString('id-ID')} dipotong dari gaji!`, 'error');
             }
 
             if (state.deliveredCount >= state.quotaTarget) {
@@ -2241,7 +4239,6 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
               state.objective = 'warehouse';
               state.targetHouse = null;
 
-              // Batas waktu Time Attack kembali ke gudang proporsional dengan jarak tempuh dari titik pengantaran terakhir
               const distToWh = Math.round(Math.hypot(courierGroup.position.x - warehouseBayPos.x, courierGroup.position.z - warehouseBayPos.z));
               const baseWhSec = Math.max(6, Math.round(distToWh / 6.2));
               const whLevelOffset = Math.min(3, Math.floor((state.level - 1) * 0.22));
@@ -2266,18 +4263,30 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       progressCircle.style.strokeDashoffset = circumference - state.verifyProgress * circumference;
     }
 
-        /* =========================================================================
+    /* =========================================================================
        9. MANAJEMEN LEVEL INFINITE, TIMER PER PAKET & PAUSE MENU
        ========================================================================= */
     const modalScreen = document.getElementById('modal-screen');
     const btnStartGame = document.getElementById('btn-start-game');
+
+    function onStartOrContinueLevel() {
+      if (document.activeElement && document.activeElement.blur) {
+        document.activeElement.blur();
+      }
+      sound.init();
+      if (state.nextLevelToLoad) {
+        const next = state.nextLevelToLoad;
+        state.nextLevelToLoad = null;
+        loadLevelSession(next);
+      }
+      startLevelPlay();
+    }
+
     btnStartGame.addEventListener('click', (e) => {
       e.preventDefault();
-      sound.init();
-      startLevelPlay();
+      onStartOrContinueLevel();
     });
 
-    // Elemen Pause Modal & Tombol
     const pauseModal = document.getElementById('pause-modal');
     const btnPauseGame = document.getElementById('btn-pause-game');
     const btnPauseResume = document.getElementById('btn-pause-resume');
@@ -2294,6 +4303,12 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
         sound.updateEngine(0);
         document.getElementById('pause-level-info').innerText = `Level ${state.level} (${state.currentLevelConfig ? state.currentLevelConfig.title : ''})`;
         document.getElementById('pause-quota-info').innerText = `${state.deliveredCount} / ${state.quotaTarget} Paket`;
+        const lvlEarned = state.levelEarnedCash || 0;
+        const pauseLvlSal = document.getElementById('pause-level-salary');
+        if (pauseLvlSal) {
+          pauseLvlSal.innerText = (lvlEarned >= 0 ? '+Rp ' : '-Rp ') + Math.abs(lvlEarned).toLocaleString('id-ID');
+          pauseLvlSal.className = `text-xs sm:text-sm font-black font-mono ${lvlEarned >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+        }
         document.getElementById('pause-salary-info').innerText = (state.totalCash >= 0 ? 'Rp ' : '-Rp ') + Math.abs(state.totalCash).toLocaleString('id-ID');
         if (state.objective === 'house' && state.currentPackage) {
           document.getElementById('pause-package-info').innerText = state.packageTimeLeft >= 0
@@ -2323,9 +4338,13 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
       state.isPaused = false;
       state.isPlaying = false;
+      state.isHoldingVerify = false;
+      state.nextLevelToLoad = null;
       pauseModal.classList.add('hidden');
       saveGameData();
       loadLevelSession(state.level);
+      renderLevelTrackMap(true);
+      btnStartGame.onclick = onStartOrContinueLevel;
       modalScreen.classList.remove('hidden');
       showToast('🏠 Kembali ke Halaman Utama.');
     }
@@ -2341,10 +4360,10 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       const cfg = generateLevelData(lvlId, state.levelAttempts[lvlId]);
 
       state.level = lvlId;
+      state.highestUnlockedLevel = Math.max(state.highestUnlockedLevel || 1, lvlId);
       state.currentLevelConfig = cfg;
       state.quotaTarget = cfg.quotaTarget;
 
-      // Waktu Time Attack awal level
       state.packageTimeLimit = Math.max(4, 8 - Math.floor((lvlId - 1) * 0.4));
       state.packageTimeLeft = state.packageTimeLimit;
       state.warehouseTimeLimit = Math.max(5, 9 - Math.floor((lvlId - 1) * 0.35));
@@ -2359,45 +4378,101 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       state.speed = 0;
       state.currentPackage = null;
 
-      // Bangun map random procedural untuk level ini
       buildLevelMap(cfg);
 
-      // Spawn mobil di titik aman
       courierGroup.position.set(SPAWN_POS.x, 0, SPAWN_POS.z);
       courierGroup.rotation.y = Math.PI;
       state.courierRot = Math.PI;
       refreshCargoUI();
 
-      // Update HUD
       document.getElementById('hud-level-number').innerText = `L${lvlId}`;
       document.getElementById('hud-level-title').innerText = cfg.title;
       document.getElementById('quota-target').innerText = cfg.quotaTarget;
-      document.getElementById('objective-text').innerText = '📦 Menuju Lingkaran Kuning Gudang untuk memuat 3 paket!';
+      document.getElementById('objective-text').innerText = `📦 Menuju Lingkaran Kuning Gudang untuk memuat ${state.maxPackages} paket!`;
 
-      // Sinkronisasi data stat di modal start
+      state.levelEarnedCash = 0;
+      state.levelGrossPay = 0;
+      state.levelPenalties = 0;
+
+      const earningsCard = document.getElementById('modal-level-earnings-card');
+      if (earningsCard) {
+        earningsCard.classList.add('hidden');
+      }
+
+      document.getElementById('modal-header-icon').className = 'fa-solid fa-truck-fast';
+      document.getElementById('modal-title').innerText = 'WAREHOUSE EXPRESS 3D';
+      document.getElementById('modal-subtitle').innerText = 'Antarkan paket dari Gudang ke warga di pinggir jalan! Gunakan jalur Aspal, Beton, atau Tanah untuk laju optimal.';
+
       document.getElementById('stat-level-text').innerText = `Level ${lvlId}`;
       document.getElementById('stat-quota-badge').innerText = `Target: ${cfg.quotaTarget} Paket`;
-      document.getElementById('stat-theme').innerText = cfg.themeDesc;
+      document.getElementById('stat-theme').innerText = `${cfg.themeDesc} • ${cfg.movingObstacles ? cfg.movingObstacles.length : 0} LALU LINTAS`;
       document.getElementById('stat-salary').innerText = (state.totalCash >= 0 ? 'Rp ' : '-Rp ') + Math.abs(state.totalCash).toLocaleString('id-ID');
       document.getElementById('btn-start-label').innerText = lvlId === 1 ? 'MULAI SHIFT LEVEL 1' : `MULAI SHIFT LEVEL ${lvlId}`;
     }
 
     function startLevelPlay() {
       sound.init();
+      if (document.activeElement && document.activeElement.blur) {
+        document.activeElement.blur();
+      }
+      courierGroup.visible = true;
       shopModal.classList.add('hidden');
       state.isPlaying = true;
       state.isPaused = false;
+      state.isHoldingVerify = false;
       modalScreen.classList.add('hidden');
     }
 
-    // Naik level tanpa batas (Infinite continuous leveling)
     function onLevelCompleted() {
       state.isPlaying = false;
+      state.isHoldingVerify = false;
+      state.verifyProgress = 0;
+      keys.w = false;
+      keys.s = false;
+      keys.a = false;
+      keys.d = false;
+      joyVec.x = 0;
+      joyVec.y = 0;
+      sound.updateEngine(0);
+      if (document.activeElement && document.activeElement.blur) {
+        document.activeElement.blur();
+      }
       sound.playSuccess();
 
       const completedLevel = state.level;
+      const earnedInLevel = state.levelEarnedCash;
+      const grossInLevel = state.levelGrossPay;
+      const penaltyInLevel = state.levelPenalties;
+
+      // Hitung Rating Bintang Level Ini
+      let ratingVal = 5.0;
+      if (penaltyInLevel > 0) {
+        const ratio = grossInLevel > 0 ? (penaltyInLevel / grossInLevel) : 0.4;
+        ratingVal = Math.max(3.0, 5.0 - ratio * 2.5);
+      }
+      ratingVal = Math.round(ratingVal * 10) / 10;
+      const starInt = Math.max(1, Math.min(5, Math.round(ratingVal)));
+
+      // Simpan rekor bintang & pendapatan terbaik di level ini
+      if (!state.levelRecords) state.levelRecords = {};
+      const prevRec = state.levelRecords[completedLevel];
+      state.levelRecords[completedLevel] = {
+        stars: prevRec ? Math.max(prevRec.stars || 0, starInt) : starInt,
+        rating: ratingVal,
+        earned: prevRec ? Math.max(prevRec.earned || 0, earnedInLevel) : earnedInLevel
+      };
+
+      state.lastLevelSummary = {
+        level: completedLevel,
+        earned: earnedInLevel,
+        gross: grossInLevel,
+        penalty: penaltyInLevel
+      };
+
       const next = completedLevel + 1;
       state.level = next;
+      state.highestUnlockedLevel = Math.max(state.highestUnlockedLevel || 1, next);
+      state.nextLevelToLoad = next;
       saveGameData();
 
       const nextCfg = generateLevelData(next, 1);
@@ -2405,20 +4480,69 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       document.getElementById('modal-header-icon').className = 'fa-solid fa-trophy';
       document.getElementById('modal-title').innerText = `DISTRIK LEVEL ${completedLevel} SELESAI!`;
       document.getElementById('modal-subtitle').innerText = `Seluruh kuota pengiriman (${state.quotaTarget} paket) berhasil terpenuhi! Bersiap memasuki ${nextCfg.fullName}.`;
+
+      const earningsCard = document.getElementById('modal-level-earnings-card');
+      if (earningsCard) {
+        earningsCard.classList.remove('hidden');
+      }
+      const earningsTitle = document.getElementById('stat-level-earnings-title');
+      if (earningsTitle) {
+        earningsTitle.innerText = `Gaji Didapat di Level ${completedLevel}`;
+      }
+      const earnedEl = document.getElementById('stat-level-earnings');
+      if (earnedEl) {
+        earnedEl.innerText = (earnedInLevel >= 0 ? '+Rp ' : '-Rp ') + Math.abs(earnedInLevel).toLocaleString('id-ID');
+        earnedEl.className = `text-2xl font-black font-mono ${earnedInLevel >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+      }
+      const grossEl = document.getElementById('stat-level-gross');
+      if (grossEl) {
+        grossEl.innerText = `+Rp ${grossInLevel.toLocaleString('id-ID')} (Tarif)`;
+      }
+      const penEl = document.getElementById('stat-level-penalty');
+      if (penEl) {
+        if (penaltyInLevel > 0) {
+          penEl.innerText = `-Rp ${penaltyInLevel.toLocaleString('id-ID')} (Denda)`;
+          penEl.className = 'text-rose-400 font-bold block';
+        } else {
+          penEl.innerText = 'Rp 0 (Tanpa Denda 🌟)';
+          penEl.className = 'text-emerald-400 font-bold block';
+        }
+      }
+
+      const ratingEl = document.getElementById('stat-rating');
+      if (ratingEl) ratingEl.innerText = ratingVal.toFixed(1);
+
+      const starsContainer = document.getElementById('stat-rating-stars');
+      if (starsContainer) {
+        let starsHtml = '';
+        for (let i = 1; i <= 5; i++) {
+          if (ratingVal >= i) {
+            starsHtml += '<i class="fa-solid fa-star"></i>';
+          } else if (ratingVal >= i - 0.5) {
+            starsHtml += '<i class="fa-solid fa-star-half-stroke"></i>';
+          } else {
+            starsHtml += '<i class="fa-regular fa-star text-slate-600"></i>';
+          }
+        }
+        starsContainer.innerHTML = starsHtml;
+      }
+      const ratingFeedEl = document.getElementById('stat-rating-feedback');
+      if (ratingFeedEl) {
+        ratingFeedEl.innerText = ratingVal >= 4.9 ? 'Layanan Sempurna ⭐' : (ratingVal >= 4.2 ? 'Layanan Sangat Baik 👍' : (ratingVal >= 3.5 ? 'Cukup Baik' : 'Hati-hati Denda ⚠️'));
+      }
+
       document.getElementById('stat-level-text').innerText = `Level ${next}`;
       document.getElementById('stat-quota-badge').innerText = `Target: ${nextCfg.quotaTarget} Paket`;
-      document.getElementById('stat-theme').innerText = nextCfg.themeDesc;
+      document.getElementById('stat-theme').innerText = `${nextCfg.themeDesc} • ${nextCfg.movingObstacles ? nextCfg.movingObstacles.length : 0} LALU LINTAS`;
       document.getElementById('stat-salary').innerText = (state.totalCash >= 0 ? 'Rp ' : '-Rp ') + Math.abs(state.totalCash).toLocaleString('id-ID');
       document.getElementById('btn-start-label').innerText = `LANJUT KE LEVEL ${next}`;
 
-      btnStartGame.onclick = () => {
-        loadLevelSession(next);
-        startLevelPlay();
-      };
+      renderLevelTrackMap(true);
+
+      btnStartGame.onclick = onStartOrContinueLevel;
       modalScreen.classList.remove('hidden');
     }
 
-    // Interval Timer Mundur Per Paket & Perhitungan Keterlambatan Realtime
     setInterval(() => {
       if (!state.isPlaying || state.isPaused) return;
 
@@ -2426,7 +4550,6 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
         state.packageTimeLeft--;
         updateTimerUI();
 
-        // Peringatan audio jika sudah memasuki denda keterlambatan / ganti rugi
         if (state.packageTimeLeft < 0 && (-state.packageTimeLeft) % 5 === 0) {
           sound.playBeep(240, 0.08, 'sawtooth', 0.04);
         }
@@ -2434,16 +4557,15 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
         state.warehouseTimeLeft--;
         updateTimerUI();
 
-        // Peringatan audio jika telat restock gudang
         if (state.warehouseTimeLeft < 0 && (-state.warehouseTimeLeft) % 5 === 0) {
           sound.playBeep(220, 0.08, 'sawtooth', 0.04);
         }
       }
     }, 1000);
-/* =========================================================================
+
+    /* =========================================================================
        10. KONTROL KEYBOARD, TOUCH JOYSTICK & TOMBOL VERIFIKASI
        ========================================================================= */
-    // Cegah tombol mempertahankan focus sehingga Spasi tidak pernah memicu klik tombol yang tidak diinginkan
     document.addEventListener('click', () => {
       if (document.activeElement && document.activeElement.blur) {
         document.activeElement.blur();
@@ -2454,26 +4576,34 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       sound.init();
       const k = e.key.toLowerCase();
 
-      // 1. JIKA MODAL TOKO SEDANG TERBUKA
       if (shopModal && !shopModal.classList.contains('hidden')) {
+        if (e.ctrlKey || e.altKey || e.metaKey || k.startsWith('f')) return;
         if (k === 'escape' || k === 'b' || k === 't') {
           e.preventDefault();
           toggleShop(false);
           return;
         }
+        if (k === ' ' || e.code === 'Space') {
+          e.preventDefault();
+        }
+        return;
       }
 
-      // 2. JIKA MODAL GO SEDANG TERBUKA
       if (goModal && !goModal.classList.contains('hidden')) {
+        if (e.ctrlKey || e.altKey || e.metaKey || k.startsWith('f')) return;
         if (k === 'escape' || k === 'g') {
           e.preventDefault();
           goModal.classList.add('hidden');
           return;
         }
+        if (k === ' ' || e.code === 'Space') {
+          e.preventDefault();
+        }
+        return;
       }
 
-      // 3. JIKA MODAL PAUSE SEDANG TERBUKA
       if (state.isPaused || (pauseModal && !pauseModal.classList.contains('hidden'))) {
+        if (e.ctrlKey || e.altKey || e.metaKey || k.startsWith('f')) return;
         if (k === 'escape' || k === 'p') {
           e.preventDefault();
           togglePause();
@@ -2489,44 +4619,47 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
           exitToMainMenu();
           return;
         }
-        return; // Blokir kontrol gerak mobil saat paused
+        if (k === ' ' || e.code === 'Space') {
+          e.preventDefault();
+        }
+        return;
       }
 
-      // 4. JIKA MODAL UTAMA / START SCREEN TERBUKA
       if (modalScreen && !modalScreen.classList.contains('hidden')) {
-        if (k === 'enter' || k === ' ') {
+        if (e.ctrlKey || e.altKey || e.metaKey || k.startsWith('f')) return;
+
+        if (k === 'enter' || e.code === 'Enter') {
           e.preventDefault();
-          const startBtn = document.getElementById('btn-start-game');
-          if (startBtn && startBtn.onclick) {
-            startBtn.onclick();
-          } else {
-            startLevelPlay();
-          }
+          onStartOrContinueLevel();
           return;
         }
+
         if (k === 'b' || k === 't') {
           e.preventDefault();
           toggleShop(true);
           return;
         }
+
         if (k === 'g') {
           e.preventDefault();
           goModal.classList.remove('hidden');
           return;
         }
+
+        e.preventDefault();
+        if (document.activeElement && document.activeElement.blur) {
+          document.activeElement.blur();
+        }
         return;
       }
 
-      // 5. JIKA SEDANG IN-GAME
       if (state.isPlaying && !state.isPaused) {
-        // ESC atau P -> Pause Game
         if (k === 'escape' || k === 'p') {
           e.preventDefault();
           togglePause();
           return;
         }
 
-        // SPASI -> Verifikasi / Tahan (Cegah default agar tidak klik tombol ber-focus)
         if (k === ' ' || e.code === 'Space') {
           e.preventDefault();
           if (document.activeElement && document.activeElement.blur) {
@@ -2536,7 +4669,6 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
           return;
         }
 
-        // G -> Arsitektur Go Backend
         if (k === 'g') {
           e.preventDefault();
           togglePause();
@@ -2544,7 +4676,6 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
           return;
         }
 
-        // Kemudi Mobil
         if (k === 'w' || k === 'arrowup') keys.w = true;
         if (k === 's' || k === 'arrowdown') keys.s = true;
         if (k === 'a' || k === 'arrowleft') keys.a = true;
@@ -2558,7 +4689,7 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       if (k === 's' || k === 'arrowdown') keys.s = false;
       if (k === 'a' || k === 'arrowleft') keys.a = false;
       if (k === 'd' || k === 'arrowright') keys.d = false;
-      if (k === ' ') state.isHoldingVerify = false;
+      if (k === ' ' || e.code === 'Space') state.isHoldingVerify = false;
     });
 
     const holdBtn = document.getElementById('hold-verify-btn');
@@ -2612,21 +4743,15 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
     const surfLabelEl = document.getElementById('surface-label');
     const surfIconEl = document.getElementById('surface-icon');
     const surfBoxEl = document.getElementById('surface-icon-box');
+    const hudSpeedKmhEl = document.getElementById('hud-speed-kmh');
 
     function animate(now) {
       requestAnimationFrame(animate);
 
       if (state.isPlaying && !state.isPaused) {
-        // 1. Cek Permukaan Jalan
         const surfKey = detectRoadSurface(courierGroup.position.x, courierGroup.position.z);
-        const surfInfo = SURFACE_TYPES[surfKey];
+        const surfInfo = SURFACE_TYPES[surfKey] || SURFACE_TYPES.asphalt;
 
-        surfLabelEl.innerText = surfInfo.label;
-        surfLabelEl.className = `text-xs font-black ${surfInfo.colorClass}`;
-        surfIconEl.className = `fa-solid ${surfInfo.icon} text-xs`;
-        surfBoxEl.className = `w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${surfInfo.boxClass}`;
-
-        // 2. Pergerakan & Rotasi Mobil
         let mx = 0, mz = 0;
         if (keys.w) mz -= 1;
         if (keys.s) mz += 1;
@@ -2649,9 +4774,19 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
           state.speed = Math.max(0, state.speed - 0.045);
         }
 
+        const curKmh = Math.round(state.speed * SPEED_TO_KMH);
+        const maxKmh = Math.round(vehMaxSpeed * SPEED_TO_KMH);
+
+        if (hudSpeedKmhEl) {
+          hudSpeedKmhEl.innerText = `${curKmh} km/h`;
+        }
+        surfLabelEl.innerText = `${surfInfo.name} (MAKS ${maxKmh} KM/H)`;
+        surfLabelEl.className = `text-xs font-black ${surfInfo.colorClass} block leading-none`;
+        surfIconEl.className = `fa-solid ${surfInfo.icon} text-xs`;
+        surfBoxEl.className = `w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${surfInfo.boxClass}`;
+
         sound.updateEngine(state.speed / (SURFACE_TYPES.asphalt.maxSpeed * (curVeh.speedMult || 1.0)));
 
-        // 3. Resolusi Tabrakan dengan Sliding Halus
         if (state.speed > 0.001) {
           const stepX = Math.sin(state.courierRot) * state.speed;
           const stepZ = Math.cos(state.courierRot) * state.speed;
@@ -2664,7 +4799,6 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
           }
         }
 
-        // 4. Animasi Guncangan Kardus Kargo di Atas Mobil
         packageMeshes.forEach((box, idx) => {
           if (box.visible) {
             box.rotation.z = Math.sin(now * 0.016 + idx) * (state.speed * 0.14);
@@ -2672,7 +4806,6 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
           }
         });
 
-        // 5. Panah Navigasi 3D & Pilar Cahaya Tujuan (Sky Beacon)
         const targetPos = (state.objective === 'house' && state.targetHouse)
           ? state.targetHouse.dropPos
           : warehouseBayPos;
@@ -2692,7 +4825,6 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
         navArrow.rotation.y = Math.atan2(dx, dz) - courierGroup.rotation.y;
         navArrow.position.y = 5.6 + Math.sin(now * 0.007) * 0.32;
 
-        // 6. Animasi NPC Melambai & Melompat
         npcs.forEach(n => {
           const isTarget = state.objective === 'house' && state.targetHouse && state.targetHouse.id === n.houseId;
           if (isTarget) {
@@ -2705,11 +4837,24 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
         });
 
         handleZoneVerification(now);
+        updateMovingObstacles(now);
+        updateAssistanceUnit(now);
+
+        if (now - state.lastObstacleHitTime < 1500) {
+          courierGroup.visible = Math.floor(now / 90) % 2 === 0;
+        } else {
+          courierGroup.visible = true;
+        }
       }
 
-      // Kamera Isometrik Mengikuti Mobil
-      camera.position.x = courierGroup.position.x + 46;
-      camera.position.z = courierGroup.position.z + 46;
+      let shakeX = 0, shakeZ = 0;
+      if (state.screenShakeDuration > 0) {
+        state.screenShakeDuration -= 16;
+        shakeX = (Math.random() - 0.5) * 1.6;
+        shakeZ = (Math.random() - 0.5) * 1.6;
+      }
+      camera.position.x = courierGroup.position.x + 46 + shakeX;
+      camera.position.z = courierGroup.position.z + 46 + shakeZ;
       camera.lookAt(courierGroup.position.x, 0, courierGroup.position.z);
 
       renderer.render(scene, camera);
@@ -2732,13 +4877,8 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       if (e.target === goModal) goModal.classList.add('hidden');
     });
 
-    // Tombol & Event Dealer Toko Mobil
-    // btn-open-shop removed from in-game header
-
     const btnOpenShopStart = document.getElementById('btn-open-shop-start');
     if (btnOpenShopStart) btnOpenShopStart.addEventListener('click', () => toggleShop(true));
-
-    // btn-pause-shop removed from pause modal
 
     const btnCloseShop = document.getElementById('btn-close-shop');
     if (btnCloseShop) btnCloseShop.addEventListener('click', () => toggleShop(false));
@@ -2760,7 +4900,8 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       applyEquippedVehicle(state.equippedVehicle);
       loadLevelSession(state.level);
       renderShopCatalog();
-      btnStartGame.onclick = startLevelPlay;
+      renderLevelTrackMap(true);
+      btnStartGame.onclick = onStartOrContinueLevel;
       animate(performance.now());
     }
 
