@@ -237,10 +237,16 @@
         </div>
         <div>
           <div class="flex items-center gap-1.5 leading-none mb-1">
-            <span class="text-[9px] uppercase font-bold text-slate-400">Speedometer:</span>
+            <span class="text-[9px] uppercase font-bold text-slate-400">Speed:</span>
             <span id="hud-speed-kmh" class="text-xs font-black text-emerald-400 font-mono">0 km/h</span>
+            <span class="text-slate-600">|</span>
+            <span class="text-[9px] uppercase font-bold text-slate-400">Alt:</span>
+            <span id="hud-elevation" class="text-xs font-black text-amber-300 font-mono">0.0 m</span>
           </div>
-          <span id="surface-label" class="text-xs font-black text-cyan-400 block leading-none">JALAN ASPAL (MAKS 60 KM/H)</span>
+          <div class="flex items-center gap-2">
+            <span id="surface-label" class="text-xs font-black text-cyan-400 block leading-none">JALAN ASPAL</span>
+            <span id="hud-elevation-badge" class="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-slate-700/80 text-slate-300 border border-slate-600">GROUND (0m)</span>
+          </div>
         </div>
       </div>
 
@@ -295,7 +301,7 @@
             <i class="fa-solid fa-flag-checkered text-emerald-400 text-xs"></i>
             <div class="text-left">
               <span class="text-[8px] uppercase font-bold text-slate-400 block leading-none">Tuntas</span>
-              <span id="track-completed-count" class="text-xs font-black text-emerald-400 font-mono">0 Lvl</span>
+              <span id="track-completed-count" class="text-xs font-black text-emerald-400 font-mono">0 Level</span>
             </div>
           </div>
           <div class="px-2.5 py-1.5 rounded-xl bg-slate-900/90 border border-slate-800/90 flex items-center gap-2">
@@ -788,10 +794,10 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       };
     }
 
-    function generateRoads(rand, lvlId = 1) {
+    function generateRoads(rand, lvlId = 1, gridLayout = null) {
       const roads = [];
 
-      const xSlots = [
+      const xSlots = gridLayout ? gridLayout.xSlots : [
         -48 + Math.round((rand() - 0.5) * 6),
         -26 + Math.round((rand() - 0.5) * 6),
         24 + Math.round((rand() - 0.5) * 6),
@@ -799,12 +805,12 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       ];
       const types = ['asphalt', 'concrete', 'concrete', 'dirt'];
 
-      const northZ = -44 + Math.round((rand() - 0.5) * 4);
-      const southZ1 = 28 + Math.round((rand() - 0.5) * 4);
-      const southZ2 = 44 + Math.round((rand() - 0.5) * 4);
+      const northZ = gridLayout ? gridLayout.northZ : (-44 + Math.round((rand() - 0.5) * 4));
+      const southZ1 = gridLayout ? gridLayout.southZ1 : (28 + Math.round((rand() - 0.5) * 4));
+      const southZ2 = gridLayout ? gridLayout.southZ2 : (44 + Math.round((rand() - 0.5) * 4));
 
       const hasFarNorth = lvlId >= 12;
-      const farNorthZ = northZ - 14;
+      const farNorthZ = gridLayout ? gridLayout.farNorthZ : (northZ - 14);
 
       const extraTier = Math.floor((lvlId - 1) / 4);
       const hasWestBypass = extraTier >= 6;
@@ -817,43 +823,107 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       const maxZBound = southZ2 + 4;
 
       // 0: Akses loading dock gudang (tersambung mulus ke jalan arteri utama di z = -4)
-      roads.push({ type: 'concrete', minX: -6, maxX: 6, minZ: -16, maxZ: -4 });
+      roads.push({ tag: 'dock', type: 'concrete', minX: -6, maxX: 6, minZ: -16, maxZ: -4, y: 0 });
 
-      // 1: Jalan arteri utama timur - barat (tersambung melintasi seluruh grid)
-      roads.push({ type: 'asphalt', minX: minXBound, maxX: maxXBound, minZ: -4, maxZ: 4 });
+      // 1: Jalan arteri utama timur - barat (tersambung melintasi seluruh grid di tanah dasar)
+      roads.push({ tag: 'main', type: 'asphalt', minX: minXBound, maxX: maxXBound, minZ: -4, maxZ: 4, y: 0 });
 
-      // 2..5: 4 Jalan arteri vertikal utama (tersambung dari batas utara terluar ke batas selatan terluar)
+      // 2..5: 4 Jalan arteri vertikal utama
+      // - Koridor Barat (idx 0 & 1): Berada di dataran rendah (y = 0) membentang penuh utara - selatan
+      // - Koridor Timur (idx 2 & 3): Tersambung mulus dengan tanjakan naik ke Distrik Dataran Tinggi
       xSlots.forEach((cx, idx) => {
         const w = 8;
         const type = types[idx % types.length];
-        roads.push({ type, minX: cx - w/2, maxX: cx + w/2, minZ: minZBound, maxZ: maxZBound });
+        if (idx < 2) {
+          // Koridor Barat: Dataran Rendah / Ground Level (y = 0)
+          roads.push({ tag: `avenue_${idx}`, type, minX: cx - w/2, maxX: cx + w/2, minZ: minZBound, maxZ: maxZBound, y: 0 });
+        } else {
+          // Koridor Timur: Jalur Arteri Terintegrasi Penuh
+          // a. Bagian Dataran Rendah Selatan (Ground y = 0, dari z = -6 ke batas selatan)
+          roads.push({ tag: `avenue_${idx}_south`, type, minX: cx - w/2, maxX: cx + w/2, minZ: -6, maxZ: maxZBound, y: 0 });
+          // b. Tanjakan Lebar Mulus Naik ke Bukit (Ramp y: 0 -> 3.6, dari z = -6 ke z = -18)
+          roads.push({
+            tag: `avenue_${idx}_ramp`,
+            type,
+            minX: cx - w/2,
+            maxX: cx + w/2,
+            minZ: -18,
+            maxZ: -6,
+            isRamp: true,
+            rampAxis: 'z',
+            yStart: 0,
+            yEnd: PLATEAU_CONFIG.height
+          });
+          // c. Bagian Jalan Puncak Bukit (Highland Plateau y = 3.6, dari z = -18 ke batas utara)
+          roads.push({
+            tag: `avenue_${idx}_north`,
+            type,
+            minX: cx - w/2,
+            maxX: cx + w/2,
+            minZ: minZBound,
+            maxZ: -18,
+            y: PLATEAU_CONFIG.height,
+            isPlateau: true
+          });
+        }
       });
 
-      // 6: Jalan horizontal utara (tersambung penuh)
+      // 6: Jalan horizontal utara (Tersambung 100% dari Barat ke Timur melalui Tanjakan Tebing di x: 6 s/d 16)
+      // a. Sisi Barat Dataran Rendah (Ground y = 0)
       roads.push({
+        tag: 'north_west',
         type: 'concrete',
         minX: minXBound,
+        maxX: 6,
+        minZ: northZ - 4,
+        maxZ: northZ + 4,
+        y: 0
+      });
+      // b. Tanjakan Mulus Lereng Tebing Penghubung (Connecting Cliff Ramp x: 6 -> 16)
+      roads.push({
+        tag: 'north_ramp',
+        type: 'concrete',
+        minX: 6,
+        maxX: 16,
+        minZ: northZ - 4,
+        maxZ: northZ + 4,
+        isRamp: true,
+        rampAxis: 'x',
+        yStart: 0,
+        yEnd: PLATEAU_CONFIG.height
+      });
+      // c. Sisi Timur di Atas Dataran Bukit (Highland Plateau y = 3.6)
+      roads.push({
+        tag: 'north_east',
+        type: 'concrete',
+        minX: 16,
         maxX: maxXBound,
         minZ: northZ - 4,
-        maxZ: northZ + 4
+        maxZ: northZ + 4,
+        y: PLATEAU_CONFIG.height,
+        isPlateau: true
       });
 
-      // 7: Jalan horizontal selatan 1 (tersambung penuh)
+      // 7: Jalan horizontal selatan 1 (tersambung penuh di tanah dasar)
       roads.push({
+        tag: 'south1',
         type: 'asphalt',
         minX: minXBound,
         maxX: maxXBound,
         minZ: southZ1 - 4,
-        maxZ: southZ1 + 4
+        maxZ: southZ1 + 4,
+        y: 0
       });
 
-      // 8: Jalan horizontal selatan 2 (tersambung penuh)
+      // 8: Jalan horizontal selatan 2 (tersambung penuh di tanah dasar)
       roads.push({
+        tag: 'south2',
         type: 'concrete',
         minX: minXBound,
         maxX: maxXBound,
         minZ: southZ2 - 4,
-        maxZ: southZ2 + 4
+        maxZ: southZ2 + 4,
+        y: 0
       });
 
       // =========================================================================
@@ -862,99 +932,166 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       // Level >= 3: Lorong Pintas Tanah Tengah (Shortcut Dirt Road) menghubungkan 2 jalan vertikal tengah
       if (lvlId >= 3) {
         roads.push({
+          tag: 'mid_dirt',
           type: 'dirt',
           minX: Math.min(xSlots[1], xSlots[2]) - 4,
           maxX: Math.max(xSlots[1], xSlots[2]) + 4,
           minZ: 14,
-          maxZ: 20
+          maxZ: 20,
+          y: 0
         });
       }
 
       // Level >= 5: Central South Avenue (Jalur Vertikal Tembus Tengah dari Jalan Utama ke Distrik Selatan)
       if (lvlId >= 5) {
         roads.push({
+          tag: 'central_south',
           type: 'concrete',
           minX: -3.5,
           maxX: 3.5,
           minZ: -4,
-          maxZ: southZ2 + 4
+          maxZ: southZ2 + 4,
+          y: 0
         });
       }
 
       // Level >= 7: Lorong Perumahan Barat Laut (Northwest Residential Alley - Asphalt)
       if (lvlId >= 7) {
         roads.push({
+          tag: 'nw_alley',
           type: 'asphalt',
           minX: Math.min(xSlots[0], xSlots[1]) - 4,
           maxX: Math.max(xSlots[0], xSlots[1]) + 4,
           minZ: -24,
-          maxZ: -18
+          maxZ: -18,
+          y: 0
         });
       }
 
-      // Level >= 9: Lorong Industri Timur Laut (Northeast Industrial Alley - Dirt)
+      // Level >= 9: Lorong Industri Timur Laut di Dataran Bukit (Northeast Plateau Alley - Dirt)
       if (lvlId >= 9) {
         roads.push({
+          tag: 'ne_alley',
           type: 'dirt',
           minX: Math.min(xSlots[2], xSlots[3]) - 4,
           maxX: Math.max(xSlots[2], xSlots[3]) + 4,
           minZ: -24,
-          maxZ: -18
+          maxZ: -18,
+          y: PLATEAU_CONFIG.height,
+          isPlateau: true
         });
       }
 
-      // Level >= 12: Jalur Arteri Jauh Lingkar Utara (Far North Ring Road - Concrete)
+      // Level >= 12: Jalur Arteri Jauh Lingkar Utara (Far North Ring Road - Concrete dengan Ramp)
       if (hasFarNorth) {
         roads.push({
+          tag: 'far_north_west',
           type: 'concrete',
           minX: minXBound,
+          maxX: 6,
+          minZ: farNorthZ - 4,
+          maxZ: farNorthZ + 4,
+          y: 0
+        });
+        roads.push({
+          tag: 'far_north_ramp',
+          type: 'concrete',
+          minX: 6,
+          maxX: 16,
+          minZ: farNorthZ - 4,
+          maxZ: farNorthZ + 4,
+          isRamp: true,
+          rampAxis: 'x',
+          yStart: 0,
+          yEnd: PLATEAU_CONFIG.height
+        });
+        roads.push({
+          tag: 'far_north_east',
+          type: 'concrete',
+          minX: 16,
           maxX: maxXBound,
           minZ: farNorthZ - 4,
-          maxZ: farNorthZ + 4
+          maxZ: farNorthZ + 4,
+          y: PLATEAU_CONFIG.height,
+          isPlateau: true
         });
       }
 
       // Level >= 16: Lorong Pintas Barat Daya
       if (extraTier >= 4) {
         roads.push({
+          tag: 'sw_dirt',
           type: 'dirt',
           minX: Math.min(xSlots[0], xSlots[1]) - 4,
           maxX: Math.max(xSlots[0], xSlots[1]) + 4,
           minZ: 36,
-          maxZ: 42
+          maxZ: 42,
+          y: 0
         });
       }
 
       // Level >= 20: Lorong Pintas Tenggara
       if (extraTier >= 5) {
         roads.push({
+          tag: 'se_concrete',
           type: 'concrete',
           minX: Math.min(xSlots[2], xSlots[3]) - 4,
           maxX: Math.max(xSlots[2], xSlots[3]) + 4,
           minZ: 36,
-          maxZ: 42
+          maxZ: 42,
+          y: 0
         });
       }
 
       // Level >= 24: Outer West Bypass Avenue
       if (hasWestBypass) {
         roads.push({
+          tag: 'outer_west',
           type: 'asphalt',
           minX: xSlots[0] - 14,
           maxX: xSlots[0] - 6,
           minZ: minZBound,
-          maxZ: maxZBound
+          maxZ: maxZBound,
+          y: 0
         });
       }
 
-      // Level >= 28: Outer East Bypass Avenue
+      // Level >= 28: Outer East Bypass Avenue (Terhubung mulus ke Bukit)
       if (hasEastBypass) {
+        const eastBx = xSlots[3] + 10;
+        // Bagian Selatan (Ground y = 0)
         roads.push({
+          tag: 'outer_east_south',
           type: 'asphalt',
-          minX: xSlots[3] + 6,
-          maxX: xSlots[3] + 14,
+          minX: eastBx - 4,
+          maxX: eastBx + 4,
+          minZ: -6,
+          maxZ: maxZBound,
+          y: 0
+        });
+        // Tanjakan Naik Bukit (Ramp y: 0 -> 3.6)
+        roads.push({
+          tag: 'outer_east_ramp',
+          type: 'asphalt',
+          minX: eastBx - 4,
+          maxX: eastBx + 4,
+          minZ: -18,
+          maxZ: -6,
+          isRamp: true,
+          rampAxis: 'z',
+          yStart: 0,
+          yEnd: PLATEAU_CONFIG.height
+        });
+        // Bagian Utara Bukit (Plateau y = 3.6)
+        roads.push({
+          tag: 'outer_east_north',
+          type: 'asphalt',
+          minX: eastBx - 4,
+          maxX: eastBx + 4,
           minZ: minZBound,
-          maxZ: maxZBound
+          maxZ: -18,
+          y: PLATEAU_CONFIG.height,
+          isPlateau: true
         });
       }
 
@@ -967,7 +1104,7 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
         0xef4444, 0x3b82f6, 0x10b981, 0xf59e0b, 0x8b5cf6,
         0xec4899, 0x06b6d4, 0xf97316, 0x14b8a6, 0x84cc16, 0xa855f7
       ];
-      const roadPool = roads.slice(1);
+      const roadPool = roads.slice(1).filter(r => !r.isRamp && !r.isBridge);
 
       let attempts = 0;
       const maxAttempts = Math.max(700, targetCount * 50);
@@ -1016,12 +1153,18 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
         }
         if (tooClose) continue;
 
+        const elev = getElevationData(hx, hz, 0);
+        const dropElev = getElevationData(dropX, dropZ, 0);
+
         houses.push({
           id: lvlId * 100 + houses.length + 1,
           x: Math.round(hx),
           z: Math.round(hz),
+          y: elev.y,
           dropX: Math.round(dropX),
           dropZ: Math.round(dropZ),
+          dropY: dropElev.y,
+          isHilltop: elev.isPlateau,
           color: houseColors[(houses.length + lvlId) % houseColors.length]
         });
       }
@@ -1029,44 +1172,41 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       return houses;
     }
 
-    function generateBarriers(roads, rand, lvlId = 1, houses = []) {
+    function generateBarriers(roads, rand, lvlId = 1, houses = [], gridLayout = null) {
       const barriers = [];
 
-      const xSlots = [
-        (roads[2].minX + roads[2].maxX) / 2,
-        (roads[3].minX + roads[3].maxX) / 2,
-        (roads[4].minX + roads[4].maxX) / 2,
-        (roads[5].minX + roads[5].maxX) / 2
+      const xSlots = gridLayout ? gridLayout.xSlots : [
+        -48, -26, 24, 48
       ];
-      const mainRoad = roads[1];
-      const northRoad = roads[6];
-      const southRoad2 = roads[8];
+      const mainRoad = roads.find(r => r.tag === 'main') || roads[1];
 
       // Barikade penutup batas tepi luar kota (ujung paling barat & timur arteri utama)
-      barriers.push({ x: mainRoad.minX - 1, z: 0, width: 8, rot: Math.PI / 2 });
-      barriers.push({ x: mainRoad.maxX + 1, z: 0, width: 8, rot: Math.PI / 2 });
+      barriers.push({ x: mainRoad.minX - 1, z: 0, width: 8.5, rot: Math.PI / 2, isDeadEnd: true });
+      barriers.push({ x: mainRoad.maxX + 1, z: 0, width: 8.5, rot: Math.PI / 2, isDeadEnd: true });
 
       // Barikade penutup ujung jalan vertikal di batas paling utara & selatan kota
       const northDeadEnd = Math.min(...roads.map(r => r.minZ));
       const southDeadEnd = Math.max(...roads.map(r => r.maxZ));
 
-      roads.slice(2, 6).forEach(r => {
-        const cx = (r.minX + r.maxX) / 2;
-        barriers.push({ x: cx, z: northDeadEnd - 1, width: 8, rot: 0 });
-        barriers.push({ x: cx, z: southDeadEnd + 1, width: 8, rot: 0 });
+      xSlots.forEach(cx => {
+        barriers.push({ x: cx, z: northDeadEnd - 1, width: 8.5, rot: 0, isDeadEnd: true });
+        barriers.push({ x: cx, z: southDeadEnd + 1, width: 8.5, rot: 0, isDeadEnd: true });
       });
 
       // Kumpulkan seluruh titik NODE PERSIMPANGAN JALAN (Intersection Nodes)
       const intersectionNodes = [];
-      const horizontalZs = [
+      const horizontalZs = gridLayout ? [
         0,
-        (northRoad.minZ + northRoad.maxZ) / 2,
-        (roads[7].minZ + roads[7].maxZ) / 2,
-        (southRoad2.minZ + southRoad2.maxZ) / 2
-      ];
-      roads.slice(9).forEach(r => {
-        const isH = (r.maxX - r.minX) >= (r.maxZ - r.minZ);
-        if (isH) horizontalZs.push((r.minZ + r.maxZ) / 2);
+        gridLayout.northZ,
+        gridLayout.southZ1,
+        gridLayout.southZ2
+      ] : [0, -44, 28, 44];
+      if (gridLayout && gridLayout.farNorthZ && lvlId >= 12) {
+        horizontalZs.push(gridLayout.farNorthZ);
+      }
+      roads.filter(r => (r.maxX - r.minX) > (r.maxZ - r.minZ) && !r.isRamp).forEach(r => {
+        const cz = Math.round((r.minZ + r.maxZ) / 2);
+        if (!horizontalZs.includes(cz)) horizontalZs.push(cz);
       });
 
       const verticalXs = [...xSlots];
@@ -1078,23 +1218,25 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
         });
       });
 
-      // Rintangan Konstruksi / Barikade Jalan di Level Tinggi:
-      // ATURAN MUTLAK:
-      // 1. Diletakkan ANTARA DUA JALAN (mid-block), BUKAN di node persimpangan jalan
-      // 2. TIDAK BOLEH menghalangi TITIK ANTAR rumah (dropPos) maupun Gudang (warehouseBayPos)
-      // 3. Hanya menutup SEPARUH lajur (width 4.8m dengan offset sisi) agar kendaraan kurir & lalu lintas tetap bisa lewat
-      const extraBarriers = Math.floor((lvlId - 1) / 3);
+      // Rintangan Konstruksi / Perbaikan Jalan:
+      // ATURAN MUTLAK & RAMAH PENGEMUDI:
+      // 1. Diletakkan di tengah blok jalan (mid-block), BUKAN di persimpangan jalan
+      // 2. DILARANG KERAS diletakkan di tanjakan bukit (ramps) atau dalam radius 12m dari mulut tanjakan
+      // 3. TIDAK BOLEH menghalangi TITIK ANTAR rumah (dropPos) maupun Gudang (warehouseBayPos)
+      // 4. HANYA MENUTUP 1 LAJUR (lebar barikade 2.6m diposisikan di tepi sisi jalan),
+      //    sehingga sisa lebar jalan > 5.0m TETAP 100% BEBAS & LANCAR DILEWATI PEMAIN
+      const extraBarriers = Math.min(4, Math.max(1, Math.floor((lvlId - 1) / 4)));
       if (extraBarriers > 0) {
         const validMidPoints = [];
 
-        // Buat kandidat titik tengah antara node horizontal
+        // Kandidat titik tengah antara node horizontal
         for (let i = 0; i < xSlots.length - 1; i++) {
           const midX = (xSlots[i] + xSlots[i + 1]) / 2;
           horizontalZs.forEach(hz => {
             validMidPoints.push({ x: midX, z: hz, rot: Math.PI / 2 });
           });
         }
-        // Buat kandidat titik tengah antara node vertikal
+        // Kandidat titik tengah antara node vertikal
         for (let j = 0; j < horizontalZs.length - 1; j++) {
           const midZ = (horizontalZs[j] + horizontalZs[j + 1]) / 2;
           xSlots.forEach(vx => {
@@ -1102,19 +1244,31 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
           });
         }
 
-        // Filter kandidat: bebas dari titik antar, gudang, dan node persimpangan
+        // Filter kandidat: pastikan jalan benar-benar aman dan mudah dilewati
         const safeCandidates = validMidPoints.filter(pt => {
-          if (Math.hypot(pt.x - warehouseBayPos.x, pt.z - warehouseBayPos.z) < 16) return false;
-          if (Math.hypot(pt.x - warehouseBuildingPos.x, pt.z - warehouseBuildingPos.z) < 18) return false;
-          if (Math.hypot(pt.x - SPAWN_POS.x, pt.z - SPAWN_POS.z) < 15) return false;
+          // Jauhi gudang dan spawn
+          if (Math.hypot(pt.x - warehouseBayPos.x, pt.z - warehouseBayPos.z) < 20) return false;
+          if (Math.hypot(pt.x - warehouseBuildingPos.x, pt.z - warehouseBuildingPos.z) < 22) return false;
+          if (Math.hypot(pt.x - SPAWN_POS.x, pt.z - SPAWN_POS.z) < 18) return false;
 
-          for (const h of houses) {
-            if (Math.hypot(pt.x - h.dropX, pt.z - h.dropZ) < 11) return false;
-            if (Math.hypot(pt.x - h.x, pt.z - h.z) < 9) return false;
+          // JAUHI TANJAKAN (RAMPS) DAN MULUT TANJAKAN:
+          for (const rd of roads) {
+            if (rd.isRamp) {
+              if (pt.x >= rd.minX - 8 && pt.x <= rd.maxX + 8 && pt.z >= rd.minZ - 8 && pt.z <= rd.maxZ + 8) {
+                return false;
+              }
+            }
           }
 
+          // Jauhi titik antar rumah
+          for (const h of houses) {
+            if (Math.hypot(pt.x - h.dropX, pt.z - h.dropZ) < 14) return false;
+            if (Math.hypot(pt.x - h.x, pt.z - h.z) < 11) return false;
+          }
+
+          // Jauhi persimpangan
           for (const node of intersectionNodes) {
-            if (Math.hypot(pt.x - node.x, pt.z - node.z) < 8.5) return false;
+            if (Math.hypot(pt.x - node.x, pt.z - node.z) < 10) return false;
           }
 
           return true;
@@ -1128,23 +1282,25 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
           const cand = safeCandidates[idx];
           let tooClose = false;
           for (const b of chosen) {
-            if (Math.hypot(cand.x - b.x, cand.z - b.z) < 14) {
+            if (Math.hypot(cand.x - b.x, cand.z - b.z) < 18) {
               tooClose = true;
               break;
             }
           }
           if (!tooClose) {
             chosen.push(cand);
-            // Geser ke salah satu sisi lajur jalan agar 1 lajur tetap bebas lancar
+            // Geser ke salah satu sisi lajur jalan (offset 2.4m dari tengah)
+            // Menutup 1 lajur (lebar 2.6m), menyisakan 5.4m lajur sebelahnya yang 100% bebas
             const isHorizRoad = cand.rot === Math.PI / 2;
-            const laneOffset = rand() > 0.5 ? 2.0 : -2.0;
+            const laneOffset = rand() > 0.5 ? 2.4 : -2.4;
             const bx = isHorizRoad ? cand.x : cand.x + laneOffset;
             const bz = isHorizRoad ? cand.z + laneOffset : cand.z;
             barriers.push({
               x: Math.round(bx * 10) / 10,
               z: Math.round(bz * 10) / 10,
-              width: 4.8,
-              rot: cand.rot
+              width: 2.6,
+              rot: cand.rot,
+              isDeadEnd: false
             });
           }
           safeCandidates.splice(idx, 1);
@@ -1320,19 +1476,19 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       return { x, z, rotY };
     }
 
-    function generateMovingObstacles(roads, rand, lvlId) {
+    function generateMovingObstacles(roads, rand, lvlId, gridLayout = null) {
       const list = [];
       // Jumlah rintangan lalu lintas bergerak bertambah secara dinamis tanpa batas seiring naiknya level
       const count = 2 + Math.floor((lvlId - 1) * 0.9);
       const speedScale = 1.0 + Math.min(0.35, (lvlId - 1) * 0.015);
 
-      const cx0 = (roads[2].minX + roads[2].maxX) / 2;
-      const cx1 = (roads[3].minX + roads[3].maxX) / 2;
-      const cx2 = (roads[4].minX + roads[4].maxX) / 2;
-      const cx3 = (roads[5].minX + roads[5].maxX) / 2;
-      const northZ = (roads[6].minZ + roads[6].maxZ) / 2;
-      const southZ1 = (roads[7].minZ + roads[7].maxZ) / 2;
-      const southZ2 = (roads[8].minZ + roads[8].maxZ) / 2;
+      const cx0 = gridLayout ? gridLayout.xSlots[0] : -48;
+      const cx1 = gridLayout ? gridLayout.xSlots[1] : -26;
+      const cx2 = gridLayout ? gridLayout.xSlots[2] : 24;
+      const cx3 = gridLayout ? gridLayout.xSlots[3] : 48;
+      const northZ = gridLayout ? gridLayout.northZ : -44;
+      const southZ1 = gridLayout ? gridLayout.southZ1 : 28;
+      const southZ2 = gridLayout ? gridLayout.southZ2 : 44;
       const mainZ = 0;
 
       const segsRoute1 = [
@@ -1514,11 +1670,14 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
     }
 
     // Tema & Bioma Visual Kota + Ikon Distrik untuk Level Track Map
+    // Tema & Bioma Visual Kota + Ikon Distrik untuk Level Track Map
     const BIOMES = [
       {
         title: "Lembah Suburban",
         fullName: "Lembah Suburban (Asymmetric Valley)",
-        groundColor: 0x55962c,
+        groundColor: 0x3d7a22,     // Hijau rumput lembah bawah
+        highlandColor: 0x84cc16,   // Hijau limau terang bukit atas (SANGAT KONTRAS)
+        cliffColor: 0x475569,      // Tebing batu slate
         skyColor: 0xc8e6f5,
         themeDesc: "ASPAL, BETON & TANAH",
         icon: "fa-house-chimney-window",
@@ -1528,7 +1687,9 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       {
         title: "Distrik Midtown",
         fullName: "Distrik Midtown (Z-Arterial City)",
-        groundColor: 0x4b7d16,
+        groundColor: 0x3b6d11,     // Rumput kota bawah
+        highlandColor: 0x10b981,   // Emerald highland park atas
+        cliffColor: 0x334155,
         skyColor: 0xdbeafe,
         themeDesc: "ARTERI KOTA MODERN",
         icon: "fa-city",
@@ -1538,7 +1699,9 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       {
         title: "Pelabuhan Kargo",
         fullName: "Pelabuhan Industri (Harbor Piers)",
-        groundColor: 0x475569,
+        groundColor: 0x334155,     // Aspal industri gelap bawah
+        highlandColor: 0x78716c,   // Platform dermaga batu terang atas
+        cliffColor: 0x1e293b,
         skyColor: 0xcbd5e1,
         themeDesc: "DERMAGA & KONTAINER",
         icon: "fa-anchor",
@@ -1548,7 +1711,9 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       {
         title: "Sunset Boulevard",
         fullName: "Pesisir Senja (Sunset Coast)",
-        groundColor: 0x713f12,
+        groundColor: 0x713f12,     // Cokelat tanah pesisir bawah
+        highlandColor: 0xc2410c,   // Terracotta sandstone bukit atas (WARNA BEDA JELAS)
+        cliffColor: 0x451a03,      // Tebing batu cadas gelap
         skyColor: 0xfbcfe8,
         themeDesc: "SENJA & PANTAI",
         icon: "fa-umbrella-beach",
@@ -1558,7 +1723,9 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       {
         title: "Highland Pines",
         fullName: "Dataran Tinggi Pinus (Pine Ridge)",
-        groundColor: 0x14532d,
+        groundColor: 0x14532d,     // Hutan pinus bawah gelap
+        highlandColor: 0x22c55e,   // Padang rumput puncak bukit segar
+        cliffColor: 0x334155,
         skyColor: 0xe0f2fe,
         themeDesc: "PERBUKITAN PINUS",
         icon: "fa-mountain-sun",
@@ -1568,8 +1735,10 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       {
         title: "Metropolis Cyber",
         fullName: "Kawasan Malam Metro (Neon Boulevard)",
-        groundColor: 0x1e293b,
-        skyColor: 0x0f172a,
+        groundColor: 0x0f172a,     // Midnight dark
+        highlandColor: 0x312e81,   // Cyber indigo plateau
+        cliffColor: 0x020617,
+        skyColor: 0x090d16,
         themeDesc: "ASPAL MALAM & NEON",
         icon: "fa-microchip",
         badgeClass: "text-purple-300 border-purple-500/40 bg-purple-950/60",
@@ -1578,7 +1747,9 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       {
         title: "Oasis Gurun",
         fullName: "Distrik Lembah Oasis (Desert Dunes)",
-        groundColor: 0x92400e,
+        groundColor: 0x92400e,     // Pasir gurun bawah
+        highlandColor: 0x15803d,   // Oasis hijau subur bukit atas
+        cliffColor: 0x78350f,
         skyColor: 0xfef3c7,
         themeDesc: "TANAH & JALAN GURUN",
         icon: "fa-sun",
@@ -1588,7 +1759,9 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       {
         title: "Taman Autumn",
         fullName: "Taman Musim Gugur (Golden Autumn)",
-        groundColor: 0x78350f,
+        groundColor: 0x78350f,     // Daun gugur cokelat bawah
+        highlandColor: 0xd97706,   // Daun emas keemasan bukit atas
+        cliffColor: 0x451a03,
         skyColor: 0xffedd5,
         themeDesc: "LEMBUT KEEMASAN",
         icon: "fa-leaf",
@@ -1605,18 +1778,40 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       const quotaTarget = Math.max(2, Math.round((4 + Math.floor((lvlId - 1) * 1.1) + Math.floor((lvlId - 1) / 4)) * 0.4));
       const shiftDuration = Math.round(45 + quotaTarget * 24);
 
-      const roads = generateRoads(rand, lvlId);
+      // Skema Grid Layout Kota Deterministik & Kokoh
+      const xSlots = [
+        -48 + Math.round((rand() - 0.5) * 6),
+        -26 + Math.round((rand() - 0.5) * 6),
+        24 + Math.round((rand() - 0.5) * 6),
+        48 + Math.round((rand() - 0.5) * 6)
+      ];
+      const northZ = -44 + Math.round((rand() - 0.5) * 4);
+      const southZ1 = 28 + Math.round((rand() - 0.5) * 4);
+      const southZ2 = 44 + Math.round((rand() - 0.5) * 4);
+      const farNorthZ = northZ - 14;
+
+      const gridLayout = {
+        xSlots,
+        northZ,
+        southZ1,
+        southZ2,
+        farNorthZ
+      };
+
+      const roads = generateRoads(rand, lvlId, gridLayout);
       const houseCount = 5 + Math.floor((lvlId - 1) * 0.75);
       const houses = generateHouses(roads, rand, lvlId, houseCount);
-      const barriers = generateBarriers(roads, rand, lvlId, houses);
+      const barriers = generateBarriers(roads, rand, lvlId, houses, gridLayout);
       const cones = generateCones(roads, rand, lvlId, houses);
-      const movingObstacles = generateMovingObstacles(roads, rand, lvlId);
+      const movingObstacles = generateMovingObstacles(roads, rand, lvlId, gridLayout);
 
       return {
         id: lvlId,
         title: biome.title,
         fullName: `${biome.fullName} (Level ${lvlId})`,
         groundColor: biome.groundColor,
+        highlandColor: biome.highlandColor || biome.groundColor,
+        cliffColor: biome.cliffColor || 0x475569,
         skyColor: biome.skyColor,
         quotaTarget,
         shiftDuration,
@@ -1667,21 +1862,21 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
     const SURFACE_TYPES = {
       asphalt: {
         name: 'JALAN ASPAL',
-        maxSpeed: 0.56,
+        maxSpeed: 0.58,
         colorClass: 'text-cyan-400',
         icon: 'fa-road',
         boxClass: 'bg-slate-800 text-cyan-400'
       },
       concrete: {
         name: 'JALAN BETON',
-        maxSpeed: 0.45,
+        maxSpeed: 0.46,
         colorClass: 'text-sky-300',
         icon: 'fa-grip-lines',
         boxClass: 'bg-slate-800 text-sky-300'
       },
       dirt: {
         name: 'JALAN TANAH',
-        maxSpeed: 0.34,
+        maxSpeed: 0.35,
         colorClass: 'text-amber-400',
         icon: 'fa-mound',
         boxClass: 'bg-amber-950/60 text-amber-400'
@@ -1696,6 +1891,45 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
     };
 
     const SPEED_TO_KMH = 60 / SURFACE_TYPES.asphalt.maxSpeed;
+
+    /* =========================================================================
+       SISTEM ELEVASI & KETINGGIAN 3D (DISTRIK PERBUKITAN BERTINGKAT)
+       ========================================================================= */
+    const PLATEAU_CONFIG = {
+      minX: 16,
+      maxX: 72,
+      minZ: -72,
+      maxZ: -18,
+      height: 3.6
+    };
+
+    function getElevationData(x, z, currentY = 0) {
+      const plat = PLATEAU_CONFIG;
+
+      // 1. Cek Tanjakan Arteri Selatan Naik ke Bukit (di z: -18 s/d -6 pada koridor timur x >= 15.5)
+      if (x >= 15.5 && x <= plat.maxX + 4 && z >= -18 && z <= -6) {
+        const t = (-6 - z) / 12; // 0 di z = -6 (ground), 1 di z = -18 (puncak bukit)
+        const y = Math.max(0, Math.min(plat.height, t * plat.height));
+        const slopeZ = -plat.height / 12;
+        return { y, slopeZ, slopeX: 0, isRamp: true, isBridge: false, isPlateau: false, type: 'plateau_ramp' };
+      }
+
+      // 2. Cek Tanjakan Arteri Lereng Tebing Penghubung Barat-Timur (di x: 6 s/d 16 pada jalur utara z <= -18)
+      if (x >= 6 && x <= 16 && z <= -18 && z >= plat.minZ - 4) {
+        const t = (x - 6) / 10; // 0 di x = 6 (ground), 1 di x = 16 (puncak bukit)
+        const y = Math.max(0, Math.min(plat.height, t * plat.height));
+        const slopeX = plat.height / 10;
+        return { y, slopeZ: 0, slopeX, isRamp: true, isBridge: false, isPlateau: false, type: 'plateau_ramp' };
+      }
+
+      // 3. Cek Wilayah Dataran Tinggi / Bukit (Plateau)
+      if (x >= plat.minX && x <= plat.maxX + 12 && z >= plat.minZ - 12 && z <= plat.maxZ) {
+        return { y: plat.height, slopeZ: 0, slopeX: 0, isRamp: false, isBridge: false, isPlateau: true, type: 'plateau' };
+      }
+
+      // Default: Tanah Datar / Jalan Biasa (y = 0)
+      return { y: 0.0, slopeZ: 0, slopeX: 0, isRamp: false, isBridge: false, isPlateau: false, type: 'ground' };
+    }
 
     /* =========================================================================
        KATALOG KENDARAAN DEALER & SISTEM PENYIMPANAN LOKAL (LOCALSTORAGE)
@@ -2119,18 +2353,27 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
     /* =========================================================================
        4. PEMBANGUNAN OBJEK 3D & PROP KOTA
        ========================================================================= */
-    function addBoxCollider(x, z, w, d) {
+    function addBoxCollider(x, z, w, d, y = 0, h = 8) {
       colliders.push({
         type: 'box',
         minX: x - w / 2,
         maxX: x + w / 2,
         minZ: z - d / 2,
-        maxZ: z + d / 2
+        maxZ: z + d / 2,
+        minY: y - 1.0,
+        maxY: y + h
       });
     }
 
-    function addCircleCollider(x, z, r) {
-      colliders.push({ type: 'circle', x, z, r });
+    function addCircleCollider(x, z, r, y = 0, h = 8) {
+      colliders.push({
+        type: 'circle',
+        x,
+        z,
+        r,
+        minY: y - 1.0,
+        maxY: y + h
+      });
     }
 
     function isSafePropPosition(x, z, cfg, minMargin = 3.2) {
@@ -2155,7 +2398,7 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       return true;
     }
 
-    function createCitizenNPC(x, z, houseId) {
+    function createCitizenNPC(x, z, houseId, baseY = 0) {
       const npc = new THREE.Group();
 
       const body = new THREE.Mesh(
@@ -2202,10 +2445,10 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       sprite.visible = false;
       npc.add(sprite);
 
-      npc.position.set(x, 0, z);
+      npc.position.set(x, baseY, z);
       worldGroup.add(npc);
 
-      return { group: npc, arm, sprite, houseId };
+      return { group: npc, arm, sprite, houseId, baseY };
     }
 
     function createCivilianCarMesh(color = 0xdc2626, isAngkot = false, isMotorcycle = false) {
@@ -2958,15 +3201,19 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
             }
           }
 
+          const obsElev = getElevationData(obs.group.position.x, obs.group.position.z, obs.group.position.y);
+          obs.group.position.y += (obsElev.y - obs.group.position.y) * 0.35;
+
           if (obs.wheels && moveSpeed > 0) {
             obs.wheels.forEach(w => {
               w.rotation.x += moveSpeed * 0.9;
             });
           }
 
-          // Tabrakan hanya terjadi bila kurir aktif menabrak atau berada tepat di depan bodi kendaraan
+          // Tabrakan hanya terjadi bila kurir aktif menabrak atau berada tepat di depan bodi kendaraan pada ketinggian sama
           const hitDist = Math.hypot(courierPos.x - obs.group.position.x, courierPos.z - obs.group.position.z);
-          if (hitDist < obs.radius + 0.9) {
+          const heightDiff = Math.abs(courierPos.y - obs.group.position.y);
+          if (hitDist < obs.radius + 0.9 && heightDiff < 2.0) {
             if (!isYieldingForPlayer && (Math.abs(state.speed) > 0.05 || (forwardDist > -0.4 && forwardDist < 2.0 && lateralDist < 1.1))) {
               onObstacleHit(obs, now);
             }
@@ -2975,10 +3222,14 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
         }
 
         if (obs.type === 'pedestrian' || obs.type === 'animal') {
+          const pedElev = getElevationData(obs.group.position.x, obs.group.position.z, obs.group.position.y);
+          const basePedY = pedElev.y;
+
           if (obs.isWaiting) {
             if (now > obs.waitResumeTime) {
               obs.isWaiting = false;
             } else {
+              obs.group.position.y = basePedY;
               return;
             }
           }
@@ -3002,7 +3253,7 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
           }
 
           if (isCrossingBlocked) {
-            obs.group.position.y = 0;
+            obs.group.position.y = basePedY;
             return;
           }
 
@@ -3042,7 +3293,7 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
             if (obs.rightLeg) obs.rightLeg.rotation.x = -legAng;
             if (obs.leftArm) obs.leftArm.rotation.x = -legAng;
             if (obs.rightArm) obs.rightArm.rotation.x = legAng;
-            obs.group.position.y = Math.abs(Math.sin(obs.walkCycle * 2)) * 0.08;
+            obs.group.position.y = basePedY + Math.abs(Math.sin(obs.walkCycle * 2)) * 0.08;
           } else if (obs.type === 'animal') {
             obs.walkCycle = (obs.walkCycle || 0) + 0.22;
             if (obs.tail) {
@@ -3060,7 +3311,8 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
           }
 
           const hitDist = Math.hypot(courierPos.x - obs.group.position.x, courierPos.z - obs.group.position.z);
-          if (hitDist < obs.radius + 1.5) {
+          const heightDiff = Math.abs(courierPos.y - obs.group.position.y);
+          if (hitDist < obs.radius + 1.5 && heightDiff < 2.0) {
             onObstacleHit(obs, now);
           }
         }
@@ -3108,9 +3360,10 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       tier2.castShadow = true;
       tree.add(tier2);
 
-      tree.position.set(x, 0, z);
+      const elev = getElevationData(x, z, 0);
+      tree.position.set(x, elev.y, z);
       worldGroup.add(tree);
-      addCircleCollider(x, z, 1.15 * scale);
+      addCircleCollider(x, z, 1.15 * scale, elev.y);
     }
 
     function createOakTree(x, z, scale = 1, leafColor = 0x43a047) {
@@ -3131,9 +3384,10 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       crown.castShadow = true;
       tree.add(crown);
 
-      tree.position.set(x, 0, z);
+      const elev = getElevationData(x, z, 0);
+      tree.position.set(x, elev.y, z);
       worldGroup.add(tree);
-      addCircleCollider(x, z, 1.2 * scale);
+      addCircleCollider(x, z, 1.2 * scale, elev.y);
     }
 
     function createRockCluster(x, z, scale = 1) {
@@ -3155,9 +3409,10 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       subRock.castShadow = true;
       rockGroup.add(subRock);
 
-      rockGroup.position.set(x, 0, z);
+      const elev = getElevationData(x, z, 0);
+      rockGroup.position.set(x, elev.y, z);
       worldGroup.add(rockGroup);
-      addCircleCollider(x, z, 1.3 * scale);
+      addCircleCollider(x, z, 1.3 * scale, elev.y);
     }
 
     function createCargoContainerProp(x, z, rotY = 0, color = 0x0284c7) {
@@ -3169,8 +3424,11 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       cont.rotation.y = rotY;
       cont.castShadow = true;
       cont.receiveShadow = true;
+
+      const elev = getElevationData(x, z, 0);
+      cont.position.y = elev.y + 1.6;
       worldGroup.add(cont);
-      addBoxCollider(x, z, rotY === 0 ? 7.0 : 3.2, rotY === 0 ? 3.2 : 7.0);
+      addBoxCollider(x, z, rotY === 0 ? 7.0 : 3.2, rotY === 0 ? 3.2 : 7.0, elev.y);
     }
 
     function createStreetLamp(x, z) {
@@ -3190,9 +3448,80 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       bulb.position.set(0, 4.9, 0);
       lamp.add(bulb);
 
-      lamp.position.set(x, 0, z);
+      const elev = getElevationData(x, z, 0);
+      lamp.position.set(x, elev.y, z);
       worldGroup.add(lamp);
-      addCircleCollider(x, z, 0.45);
+      addCircleCollider(x, z, 0.45, elev.y);
+    }
+
+    function createRampWedgeGeometry(w, l, h, axis = 'z') {
+      const geo = new THREE.BufferGeometry();
+      const positions = [];
+      const addTri = (p1, p2, p3) => {
+        positions.push(p1[0], p1[1], p1[2], p2[0], p2[1], p2[2], p3[0], p3[1], p3[2]);
+      };
+
+      if (axis === 'z') {
+        // Tanjakan membujur utara-selatan:
+        // Dari z = +l/2 (selatan, y = 0) menanjak ke z = -l/2 (utara, y = h)
+        const zStart = l / 2;
+        const zEnd = -l / 2;
+        const x1 = -w / 2;
+        const x2 = w / 2;
+
+        const v0 = [x1, 0, zStart];
+        const v1 = [x2, 0, zStart];
+        const v2 = [x1, 0, zEnd];
+        const v3 = [x2, 0, zEnd];
+        const v4 = [x1, h, zEnd];
+        const v5 = [x2, h, zEnd];
+
+        // Muka miring atas (lereng tanjakan)
+        addTri(v0, v1, v4);
+        addTri(v1, v5, v4);
+        // Dinding barat (kiri)
+        addTri(v0, v4, v2);
+        // Dinding timur (kanan)
+        addTri(v1, v3, v5);
+        // Dinding utara tebing (belakang)
+        addTri(v2, v4, v3);
+        addTri(v3, v4, v5);
+        // Dasar tanah bawah (alas)
+        addTri(v0, v2, v1);
+        addTri(v1, v2, v3);
+      } else {
+        // Tanjakan membujur barat-timur:
+        // Dari x = -w/2 (barat, y = 0) menanjak ke x = +w/2 (timur, y = h)
+        const xStart = -w / 2;
+        const xEnd = w / 2;
+        const z1 = -l / 2;
+        const z2 = l / 2;
+
+        const v0 = [xStart, 0, z1];
+        const v1 = [xStart, 0, z2];
+        const v2 = [xEnd, 0, z1];
+        const v3 = [xEnd, 0, z2];
+        const v4 = [xEnd, h, z1];
+        const v5 = [xEnd, h, z2];
+
+        // Muka miring atas (lereng tanjakan)
+        addTri(v0, v4, v1);
+        addTri(v1, v4, v5);
+        // Dinding selatan
+        addTri(v1, v5, v3);
+        // Dinding utara
+        addTri(v0, v2, v4);
+        // Dinding timur tebing (belakang)
+        addTri(v2, v3, v4);
+        addTri(v3, v5, v4);
+        // Dasar tanah bawah (alas)
+        addTri(v0, v1, v2);
+        addTri(v1, v3, v2);
+      }
+
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geo.computeVertexNormals();
+      return geo;
     }
 
     function buildLevelMap(cfgOrLevelId) {
@@ -3224,20 +3553,237 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       ground.receiveShadow = true;
       worldGroup.add(ground);
 
+      // =========================================================================
+      // 1. PEMBANGUNAN 3D DISTRIK DATARAN TINGGI / BUKIT (PLATEAU TERRAIN 3.6M)
+      // =========================================================================
+      const plat = PLATEAU_CONFIG;
+      const platW = plat.maxX - plat.minX;
+      const platL = plat.maxZ - plat.minZ;
+      const platCx = (plat.minX + plat.maxX) / 2;
+      const platCz = (plat.minZ + plat.maxZ) / 2;
+
+      const plateauGroup = new THREE.Group();
+      // Dinding tebing batu bukit (Cliff Strata)
+      const cliffMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(platW, plat.height, platL),
+        new THREE.MeshLambertMaterial({ color: cfg.cliffColor || 0x475569 })
+      );
+      cliffMesh.position.set(platCx, plat.height / 2, platCz);
+      cliffMesh.receiveShadow = true;
+      cliffMesh.castShadow = true;
+      plateauGroup.add(cliffMesh);
+
+      // Permukaan tanah atas bukit (WARNA BERBEDA JELAS SESUAI KETINGGIAN)
+      const topGrass = new THREE.Mesh(
+        new THREE.PlaneGeometry(platW, platL),
+        new THREE.MeshLambertMaterial({ color: cfg.highlandColor || 0xc2410c })
+      );
+      topGrass.rotation.x = -Math.PI / 2;
+      topGrass.position.set(platCx, plat.height + 0.012, platCz);
+      topGrass.receiveShadow = true;
+      plateauGroup.add(topGrass);
+
+      worldGroup.add(plateauGroup);
+
+      // Pembatas tebing bukit otomatis (Hanya membuka jalan tanjakan resmi)
+      // a. Tepi Selatan Bukit (z = -18):
+      const southRamps = cfg.roads.filter(r => r.isRamp && (!r.rampAxis || r.rampAxis === 'z'));
+      const southOpenings = southRamps.map(r => ({ min: r.minX - 0.2, max: r.maxX + 0.2 }))
+        .sort((a, b) => a.min - b.min);
+
+      let curX = plat.minX;
+      southOpenings.forEach(op => {
+        if (op.min > curX + 0.5) {
+          const segW = op.min - curX;
+          const segCx = (curX + op.min) / 2;
+          const parapet = new THREE.Mesh(
+            new THREE.BoxGeometry(segW, 1.1, 0.9),
+            new THREE.MeshLambertMaterial({ color: cfg.cliffColor || 0x475569 })
+          );
+          parapet.position.set(segCx, plat.height + 0.55, -18);
+          parapet.castShadow = true;
+          worldGroup.add(parapet);
+          addBoxCollider(segCx, -18, segW, 1.2, 0, plat.height + 3);
+        }
+        // Pasang tiang peringatan reflektif di gerbang masuk tanjakan
+        [-1, 1].forEach(s => {
+          const px = (s < 0 ? op.min : op.max);
+          const post = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.18, 0.22, 1.4, 8),
+            new THREE.MeshLambertMaterial({ color: 0xfacc15 })
+          );
+          post.position.set(px, plat.height + 0.7, -18);
+          post.castShadow = true;
+          worldGroup.add(post);
+        });
+        curX = Math.max(curX, op.max);
+      });
+      if (curX < plat.maxX - 0.5) {
+        const segW = plat.maxX - curX;
+        const segCx = (curX + plat.maxX) / 2;
+        const parapet = new THREE.Mesh(
+          new THREE.BoxGeometry(segW, 1.1, 0.9),
+          new THREE.MeshLambertMaterial({ color: cfg.cliffColor || 0x475569 })
+        );
+        parapet.position.set(segCx, plat.height + 0.55, -18);
+        parapet.castShadow = true;
+        worldGroup.add(parapet);
+        addBoxCollider(segCx, -18, segW, 1.2, 0, plat.height + 3);
+      }
+
+      // b. Tepi Barat Bukit (x = 16):
+      const westRamps = cfg.roads.filter(r => r.isRamp && r.rampAxis === 'x');
+      const westOpenings = westRamps.map(r => ({ min: r.minZ - 0.2, max: r.maxZ + 0.2 }))
+        .sort((a, b) => a.min - b.min);
+
+      let curZ = plat.minZ;
+      westOpenings.forEach(op => {
+        if (op.min > curZ + 0.5) {
+          const segL = op.min - curZ;
+          const segCz = (curZ + op.min) / 2;
+          const parapet = new THREE.Mesh(
+            new THREE.BoxGeometry(0.9, 1.1, segL),
+            new THREE.MeshLambertMaterial({ color: cfg.cliffColor || 0x475569 })
+          );
+          parapet.position.set(16, plat.height + 0.55, segCz);
+          parapet.castShadow = true;
+          worldGroup.add(parapet);
+          addBoxCollider(16, segCz, 1.2, segL, 0, plat.height + 3);
+        }
+        // Pasang tiang peringatan di gerbang tanjakan barat
+        [-1, 1].forEach(s => {
+          const pz = (s < 0 ? op.min : op.max);
+          const post = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.18, 0.22, 1.4, 8),
+            new THREE.MeshLambertMaterial({ color: 0xfacc15 })
+          );
+          post.position.set(16, plat.height + 0.7, pz);
+          post.castShadow = true;
+          worldGroup.add(post);
+        });
+        curZ = Math.max(curZ, op.max);
+      });
+      if (curZ < plat.maxZ - 0.5) {
+        const segL = plat.maxZ - curZ;
+        const segCz = (curZ + plat.maxZ) / 2;
+        const parapet = new THREE.Mesh(
+          new THREE.BoxGeometry(0.9, 1.1, segL),
+          new THREE.MeshLambertMaterial({ color: cfg.cliffColor || 0x475569 })
+        );
+        parapet.position.set(16, plat.height + 0.55, segCz);
+        parapet.castShadow = true;
+        worldGroup.add(parapet);
+        addBoxCollider(16, segCz, 1.2, segL, 0, plat.height + 3);
+      }
+
+      // =========================================================================
+      // 2. PEMBANGUNAN JALAN MULTI-LEVEL & TANJAKAN PENGHUBUNG KETINGGIAN (RAMPS)
+      // =========================================================================
       cfg.roads.forEach(r => {
         const w = r.maxX - r.minX;
         const l = r.maxZ - r.minZ;
         const cx = (r.minX + r.maxX) / 2;
         const cz = (r.minZ + r.maxZ) / 2;
 
+        if (r.isRamp) {
+          // --- TANJAKAN PENGHUBUNG BERTINGKAT (SOLID PRISMATIC WEDGE TANPA GLITCH) ---
+          const dy = r.yEnd - r.yStart;
+          const rampGroup = new THREE.Group();
+          const roadColor = r.type === 'concrete' ? 0x94a3b8 : (r.type === 'dirt' ? 0x855836 : 0x272b30);
+          const isAxisX = r.rampAxis === 'x';
+
+          // 1. Pondasi prisma lereng tebing (Wedge) - murni lereng dari y=0 ke y=3.6 tanpa balok datar yang memotong jalan
+          const wedgeGeo = createRampWedgeGeometry(w, l, dy, isAxisX ? 'x' : 'z');
+          const wedgeMesh = new THREE.Mesh(
+            wedgeGeo,
+            new THREE.MeshLambertMaterial({ color: cfg.cliffColor || 0x475569 })
+          );
+          wedgeMesh.position.set(cx, 0, cz);
+          wedgeMesh.receiveShadow = true;
+          wedgeMesh.castShadow = true;
+          rampGroup.add(wedgeMesh);
+
+          // 2. Lapisan permukaan aspal / beton di atas lereng
+          if (isAxisX) {
+            const rampLen = Math.hypot(w, dy);
+            const rampAngle = Math.atan2(dy, w);
+
+            const roadSlab = new THREE.Mesh(
+              new THREE.BoxGeometry(rampLen, 0.08, l - 0.15),
+              new THREE.MeshLambertMaterial({ color: roadColor })
+            );
+            roadSlab.position.set(cx, (r.yStart + r.yEnd) / 2 + 0.04, cz);
+            roadSlab.rotation.z = rampAngle;
+            roadSlab.receiveShadow = true;
+            rampGroup.add(roadSlab);
+
+            // Trotoar pembatas samping (curb) tepi samping utara & selatan
+            [-1, 1].forEach(side => {
+              const curbZ = cz + side * (l / 2 - 0.18);
+              const curb = new THREE.Mesh(
+                new THREE.BoxGeometry(rampLen, 0.40, 0.32),
+                new THREE.MeshLambertMaterial({ color: 0x64748b })
+              );
+              curb.position.set(cx, (r.yStart + r.yEnd) / 2 + 0.18, curbZ);
+              curb.rotation.z = rampAngle;
+              curb.castShadow = true;
+              rampGroup.add(curb);
+            });
+          } else {
+            const rampLen = Math.hypot(l, dy);
+            const rampAngle = Math.atan2(dy, l);
+
+            const roadSlab = new THREE.Mesh(
+              new THREE.BoxGeometry(w - 0.15, 0.08, rampLen),
+              new THREE.MeshLambertMaterial({ color: roadColor })
+            );
+            roadSlab.position.set(cx, (r.yStart + r.yEnd) / 2 + 0.04, cz);
+            roadSlab.rotation.x = rampAngle;
+            roadSlab.receiveShadow = true;
+            rampGroup.add(roadSlab);
+
+            // Trotoar pembatas keselamatan samping barat & timur
+            [-1, 1].forEach(side => {
+              const curbX = cx + side * (w / 2 - 0.18);
+              const curb = new THREE.Mesh(
+                new THREE.BoxGeometry(0.32, 0.40, rampLen),
+                new THREE.MeshLambertMaterial({ color: 0x64748b })
+              );
+              curb.position.set(curbX, (r.yStart + r.yEnd) / 2 + 0.18, cz);
+              curb.rotation.x = rampAngle;
+              curb.castShadow = true;
+              rampGroup.add(curb);
+            });
+
+            // Marka garis putus-putus di atas tanjakan
+            for (let mz = r.minZ + 2.5; mz <= r.maxZ - 2.5; mz += 5) {
+              const frac = (-6 - mz) / 12;
+              const my = frac * dy + 0.12;
+              const mark = new THREE.Mesh(
+                new THREE.BoxGeometry(0.4, 0.04, 2.4),
+                new THREE.MeshBasicMaterial({ color: 0xf8fafc })
+              );
+              mark.position.set(cx, my, mz);
+              mark.rotation.x = rampAngle;
+              rampGroup.add(mark);
+            }
+          }
+
+          worldGroup.add(rampGroup);
+          roadSegments.push(r);
+          return;
+        }
+
+        // --- JALAN DATAR BIASA (DI GROUND ATAU DI ATAS BUKIT) ---
+        const baseY = r.y || 0;
         let color = 0x272b30;
-        let yOffset = 0.025;
+        let yOffset = baseY + 0.025;
         if (r.type === 'concrete') {
           color = 0x94a3b8;
-          yOffset = 0.02;
+          yOffset = baseY + 0.02;
         } else if (r.type === 'dirt') {
           color = 0x855836;
-          yOffset = 0.015;
+          yOffset = baseY + 0.015;
         }
 
         const roadMesh = new THREE.Mesh(
@@ -3265,7 +3811,7 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
             mark.rotation.x = -Math.PI / 2;
             mark.position.set(
               isZ ? cx : cx + offset,
-              0.035,
+              baseY + 0.035,
               isZ ? cz + offset : cz
             );
             worldGroup.add(mark);
@@ -3302,7 +3848,7 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
 
       whGroup.position.copy(warehouseBuildingPos);
       worldGroup.add(whGroup);
-      addBoxCollider(warehouseBuildingPos.x, warehouseBuildingPos.z, 16.5, 11.5);
+      addBoxCollider(warehouseBuildingPos.x, warehouseBuildingPos.z, 16.5, 11.5, 0);
 
       const bayRing = new THREE.Mesh(
         new THREE.RingGeometry(3.2, 4.4, 32),
@@ -3313,6 +3859,9 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       worldGroup.add(bayRing);
 
       cfg.houses.forEach(h => {
+        const houseY = h.y || 0;
+        const dropY = h.dropY || houseY;
+
         const hGroup = new THREE.Group();
         const wall = new THREE.Mesh(
           new THREE.BoxGeometry(8, 5.5, 8),
@@ -3332,11 +3881,11 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
         roof.castShadow = true;
         hGroup.add(roof);
 
-        hGroup.position.set(h.x, 0, h.z);
+        hGroup.position.set(h.x, houseY, h.z);
         worldGroup.add(hGroup);
-        addBoxCollider(h.x, h.z, 8.6, 8.6);
+        addBoxCollider(h.x, h.z, 8.6, 8.6, houseY);
 
-        const dropPos = new THREE.Vector3(h.dropX, 0.04, h.dropZ);
+        const dropPos = new THREE.Vector3(h.dropX, dropY + 0.04, h.dropZ);
         const zoneRing = new THREE.Mesh(
           new THREE.RingGeometry(2.5, 3.5, 32),
           new THREE.MeshBasicMaterial({ color: 0x38bdf8, side: THREE.DoubleSide })
@@ -3345,12 +3894,12 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
         zoneRing.position.copy(dropPos);
         worldGroup.add(zoneRing);
 
-        const npc = createCitizenNPC(h.dropX, h.dropZ, h.id);
+        const npc = createCitizenNPC(h.dropX, h.dropZ, h.id, dropY);
         npcs.push(npc);
 
         houses.push({
           id: h.id,
-          name: `Rumah #${h.id}`,
+          name: h.isHilltop ? `Rumah Bukit #${h.id}` : `Rumah #${h.id}`,
           dropPos,
           zoneRing,
           npc
@@ -3359,38 +3908,73 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
 
       cfg.barriers.forEach(b => {
         if (Math.hypot(b.x - SPAWN_POS.x, b.z - SPAWN_POS.z) < 14) return;
+        const elev = getElevationData(b.x, b.z, 0);
+        const bY = elev.y;
+
+        const isDeadEnd = b.isDeadEnd || b.width >= 7.0;
+        const barW = isDeadEnd ? b.width : 2.6;
+
         const barGroup = new THREE.Group();
         const beam = new THREE.Mesh(
-          new THREE.BoxGeometry(b.width, 1.3, 0.8),
+          new THREE.BoxGeometry(barW, 1.1, 0.35),
           new THREE.MeshLambertMaterial({ color: 0xef4444 })
         );
-        beam.position.y = 0.8;
+        beam.position.y = 0.75;
         beam.castShadow = true;
         barGroup.add(beam);
 
+        // Strip reflektif kuning/putih
         const stripe = new THREE.Mesh(
-          new THREE.BoxGeometry(b.width * 0.9, 0.35, 0.85),
+          new THREE.BoxGeometry(barW * 0.92, 0.32, 0.38),
           new THREE.MeshBasicMaterial({ color: 0xfef08a })
         );
-        stripe.position.y = 0.9;
+        stripe.position.y = 0.8;
         barGroup.add(stripe);
 
-        barGroup.position.set(b.x, 0, b.z);
+        // Kaki penopang barikade
+        [-1, 1].forEach(side => {
+          const leg = new THREE.Mesh(
+            new THREE.BoxGeometry(0.18, 0.95, 0.65),
+            new THREE.MeshLambertMaterial({ color: 0x334155 })
+          );
+          leg.position.set(side * (barW / 2 - 0.2), 0.5, 0);
+          barGroup.add(leg);
+        });
+
+        // Lampu hazard amber di atas barikade konstruksi lajur
+        if (!isDeadEnd) {
+          const flasher = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.14, 0.14, 0.22, 8),
+            new THREE.MeshBasicMaterial({ color: 0xf59e0b })
+          );
+          flasher.position.set(0, 1.42, 0);
+          barGroup.add(flasher);
+        }
+
+        barGroup.position.set(b.x, bY, b.z);
         barGroup.rotation.y = b.rot || 0;
         worldGroup.add(barGroup);
-        addCircleCollider(b.x, b.z, 2.3);
+
+        // Gunakan BOX COLLIDER presisi (HANYA menutup fisik balok barikade, lajur sebelahnya 100% bebas dilewati!)
+        const isHorizRoad = Math.abs((b.rot || 0) - Math.PI / 2) < 0.2;
+        const colW = isHorizRoad ? 0.5 : barW;
+        const colL = isHorizRoad ? barW : 0.5;
+        addBoxCollider(b.x, b.z, colW, colL, bY, 2.5);
       });
 
       (cfg.cones || []).forEach(c => {
         if (Math.hypot(c.x - SPAWN_POS.x, c.z - SPAWN_POS.z) < 10) return;
+        const elev = getElevationData(c.x, c.z, 0);
+        const cY = elev.y;
+
         const cone = new THREE.Mesh(
-          new THREE.ConeGeometry(0.55, 1.35, 10),
+          new THREE.ConeGeometry(0.48, 1.25, 8),
           new THREE.MeshLambertMaterial({ color: 0xf97316 })
         );
-        cone.position.set(c.x, 0.68, c.z);
+        cone.position.set(c.x, cY + 0.62, c.z);
         cone.castShadow = true;
         worldGroup.add(cone);
-        addCircleCollider(c.x, c.z, 0.65);
+        addCircleCollider(c.x, c.z, 0.22, cY);
       });
 
       [-36, -18, 18, 36].forEach(lx => {
@@ -3793,6 +4377,8 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
        6. MOBIL KURIR & PANAH NAVIGASI 3D SUPER JELAS
        ========================================================================= */
     const courierGroup = new THREE.Group();
+    const courierVisualGroup = new THREE.Group();
+    courierGroup.add(courierVisualGroup);
 
     const curVehCfg = VEHICLES[state.equippedVehicle] || VEHICLES.starter_pickup;
     const chassisMat = new THREE.MeshLambertMaterial({ color: curVehCfg.chassisColor });
@@ -3802,7 +4388,7 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
     );
     chassis.position.y = 1.05;
     chassis.castShadow = true;
-    courierGroup.add(chassis);
+    courierVisualGroup.add(chassis);
 
     const cabinMat = new THREE.MeshLambertMaterial({ color: curVehCfg.cabinColor });
     const cabin = new THREE.Mesh(
@@ -3811,11 +4397,11 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
     );
     cabin.position.set(0, 2.0, 1.0);
     cabin.castShadow = true;
-    courierGroup.add(cabin);
+    courierVisualGroup.add(cabin);
 
     const neonUnderglow = new THREE.PointLight(curVehCfg.glowColor || curVehCfg.chassisColor, curVehCfg.glowIntensity || 0, 7);
     neonUnderglow.position.set(0, 0.4, 0);
-    courierGroup.add(neonUnderglow);
+    courierVisualGroup.add(neonUnderglow);
 
     const wGeo = new THREE.CylinderGeometry(0.52, 0.52, 0.4, 14);
     wGeo.rotateZ(Math.PI / 2);
@@ -3823,7 +4409,7 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
     [[-1.4, 0.52, 1.3], [1.4, 0.52, 1.3], [-1.4, 0.52, -1.3], [1.4, 0.52, -1.3]].forEach(p => {
       const wheel = new THREE.Mesh(wGeo, wMat);
       wheel.position.set(p[0], p[1], p[2]);
-      courierGroup.add(wheel);
+      courierVisualGroup.add(wheel);
     });
 
     const packageMeshes = [];
@@ -3843,7 +4429,7 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       box.position.set(boxPositions[i][0], boxPositions[i][1], boxPositions[i][2]);
       box.castShadow = true;
       box.visible = false;
-      courierGroup.add(box);
+      courierVisualGroup.add(box);
       packageMeshes.push(box);
     }
 
@@ -3888,23 +4474,32 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
     /* =========================================================================
        7. LOGIKA DETEKSI PERMUKAAN, TABRAKAN SOLID & PEMILIHAN RUMAH ANTI-DUPLIKAT
        ========================================================================= */
-    function detectRoadSurface(x, z) {
+    function detectRoadSurface(x, z, y = (courierGroup ? courierGroup.position.y : 0)) {
+      const elev = getElevationData(x, z, y);
+      if (elev.isBridge || elev.type === 'flyover_ramp') return 'highway';
+
       let found = 'offroad';
       for (const r of roadSegments) {
         if (x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ) {
-          if (r.type === 'asphalt') return 'asphalt';
-          if (r.type === 'concrete') found = 'concrete';
-          else if (r.type === 'dirt' && found === 'offroad') found = 'dirt';
+          const roadY = r.y || 0;
+          if (r.isRamp || Math.abs(y - roadY) <= 1.8) {
+            if (r.type === 'asphalt') return 'asphalt';
+            if (r.type === 'concrete') found = 'concrete';
+            else if (r.type === 'dirt' && found === 'offroad') found = 'dirt';
+          }
         }
       }
       return found;
     }
 
-    function checkCollisionAt(x, z) {
-      const radius = 1.65;
+    function checkCollisionAt(x, z, y = (courierGroup ? courierGroup.position.y : 0)) {
+      const radius = 1.25;
       if (Math.abs(x) > 78 || Math.abs(z) > 78) return true;
 
       for (const c of colliders) {
+        if (typeof c.minY === 'number' && typeof c.maxY === 'number') {
+          if (y < c.minY || y > c.maxY) continue;
+        }
         if (c.type === 'box') {
           const closestX = Math.max(c.minX, Math.min(x, c.maxX));
           const closestZ = Math.max(c.minZ, Math.min(z, c.maxZ));
@@ -4749,8 +5344,23 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
       requestAnimationFrame(animate);
 
       if (state.isPlaying && !state.isPaused) {
-        const surfKey = detectRoadSurface(courierGroup.position.x, courierGroup.position.z);
+        const elevData = getElevationData(courierGroup.position.x, courierGroup.position.z, courierGroup.position.y);
+        const surfKey = detectRoadSurface(courierGroup.position.x, courierGroup.position.z, courierGroup.position.y);
         const surfInfo = SURFACE_TYPES[surfKey] || SURFACE_TYPES.asphalt;
+
+        // Penyesuaian ketinggian mobil kurir secara mulus (smooth vertical lerp)
+        courierGroup.position.y += (elevData.y - courierGroup.position.y) * 0.28;
+
+        // Hitung sudut kemiringan tanjakan (Pitch Tilt) berdasarkan elevasi depan vs belakang
+        const fwdX = Math.sin(state.courierRot);
+        const fwdZ = Math.cos(state.courierRot);
+        const frontProbe = getElevationData(courierGroup.position.x + fwdX * 1.5, courierGroup.position.z + fwdZ * 1.5, courierGroup.position.y);
+        const backProbe = getElevationData(courierGroup.position.x - fwdX * 1.5, courierGroup.position.z - fwdZ * 1.5, courierGroup.position.y);
+        const targetPitch = Math.atan2(frontProbe.y - backProbe.y, 3.0);
+        state.currentPitch = (state.currentPitch || 0) + (targetPitch - (state.currentPitch || 0)) * 0.22;
+        if (typeof courierVisualGroup !== 'undefined') {
+          courierVisualGroup.rotation.x = -state.currentPitch;
+        }
 
         let mx = 0, mz = 0;
         if (keys.w) mz -= 1;
@@ -4762,9 +5372,17 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
           mz = joyVec.y;
         }
 
+        // Efek gravitasi tanjakan / turunan pada kecepatan
+        let slopeSpeedMult = 1.0;
+        if (elevData.isRamp) {
+          const climbGrade = (frontProbe.y - backProbe.y);
+          if (climbGrade > 0.1) slopeSpeedMult = 0.90; // Menanjak: sedikit lebih berat
+          else if (climbGrade < -0.1) slopeSpeedMult = 1.14; // Menuruni tanjakan: meluncur lebih kencang!
+        }
+
         const curVeh = VEHICLES[state.equippedVehicle] || VEHICLES.starter_pickup;
-        const vehMaxSpeed = surfInfo.maxSpeed * (curVeh.speedMult || 1.0);
-        const vehAccel = curVeh.acceleration || 0.035;
+        const vehMaxSpeed = surfInfo.maxSpeed * (curVeh.speedMult || 1.0) * slopeSpeedMult;
+        const vehAccel = (curVeh.acceleration || 0.035) * (slopeSpeedMult < 1.0 ? 0.88 : 1.05);
 
         if (Math.hypot(mx, mz) > 0.1) {
           state.speed = Math.min(vehMaxSpeed, state.speed + vehAccel);
@@ -4785,16 +5403,38 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
         surfIconEl.className = `fa-solid ${surfInfo.icon} text-xs`;
         surfBoxEl.className = `w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${surfInfo.boxClass}`;
 
+        // Update indikator ketinggian & badge status di HUD
+        const hudElevationEl = document.getElementById('hud-elevation');
+        const hudElevBadgeEl = document.getElementById('hud-elevation-badge');
+        if (hudElevationEl) {
+          hudElevationEl.innerText = `${courierGroup.position.y.toFixed(1)} m`;
+        }
+        if (hudElevBadgeEl) {
+          if (elevData.isBridge) {
+            hudElevBadgeEl.innerText = 'FLYOVER (4.4M)';
+            hudElevBadgeEl.className = 'px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-indigo-500/30 text-indigo-300 border border-indigo-500/50';
+          } else if (elevData.isRamp) {
+            hudElevBadgeEl.innerText = elevData.type === 'flyover_ramp' ? 'RAMP FLYOVER' : 'RAMP BUKIT';
+            hudElevBadgeEl.className = 'px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-amber-500/30 text-amber-300 border border-amber-500/50 animate-pulse';
+          } else if (elevData.isPlateau) {
+            hudElevBadgeEl.innerText = 'DATARAN BUKIT (3.5M)';
+            hudElevBadgeEl.className = 'px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-emerald-500/30 text-emerald-300 border border-emerald-500/50';
+          } else {
+            hudElevBadgeEl.innerText = 'GROUND (0M)';
+            hudElevBadgeEl.className = 'px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-slate-700/80 text-slate-300 border border-slate-600';
+          }
+        }
+
         sound.updateEngine(state.speed / (SURFACE_TYPES.asphalt.maxSpeed * (curVeh.speedMult || 1.0)));
 
         if (state.speed > 0.001) {
           const stepX = Math.sin(state.courierRot) * state.speed;
           const stepZ = Math.cos(state.courierRot) * state.speed;
 
-          if (!checkCollisionAt(courierGroup.position.x + stepX, courierGroup.position.z)) {
+          if (!checkCollisionAt(courierGroup.position.x + stepX, courierGroup.position.z, courierGroup.position.y)) {
             courierGroup.position.x += stepX;
           }
-          if (!checkCollisionAt(courierGroup.position.x, courierGroup.position.z + stepZ)) {
+          if (!checkCollisionAt(courierGroup.position.x, courierGroup.position.z + stepZ, courierGroup.position.y)) {
             courierGroup.position.z += stepZ;
           }
         }
@@ -4814,7 +5454,9 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
         arrowHead.material.color.setHex(isHouseObjective ? 0x4ade80 : 0xfacc15);
         compassRim.material.color.setHex(isHouseObjective ? 0x4ade80 : 0xfacc15);
 
-        beaconGroup.position.set(targetPos.x, 0, targetPos.z);
+        const targetY = targetPos.y || 0;
+        beaconGroup.position.set(targetPos.x, targetY, targetPos.z);
+        beaconBeam.position.y = 16;
         beaconBeam.material.color.setHex(isHouseObjective ? 0xf97316 : 0xfacc15);
         beaconDiamond.material.color.setHex(isHouseObjective ? 0xfed7aa : 0xfef08a);
         beaconDiamond.rotation.y = now * 0.004;
@@ -4827,12 +5469,13 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
 
         npcs.forEach(n => {
           const isTarget = state.objective === 'house' && state.targetHouse && state.targetHouse.id === n.houseId;
+          const baseHeight = n.baseY || 0;
           if (isTarget) {
             n.arm.rotation.z = -Math.PI / 3 + Math.sin(now * 0.012) * 0.65;
-            n.group.position.y = Math.abs(Math.sin(now * 0.008)) * 0.4;
+            n.group.position.y = baseHeight + Math.abs(Math.sin(now * 0.008)) * 0.4;
           } else {
             n.arm.rotation.z = -Math.PI / 3;
-            n.group.position.y = 0;
+            n.group.position.y = baseHeight;
           }
         });
 
@@ -4854,8 +5497,9 @@ func ValidatePlayerStep(p *Courier, nextX, nextZ, dt float64, surf SurfaceType) 
         shakeZ = (Math.random() - 0.5) * 1.6;
       }
       camera.position.x = courierGroup.position.x + 46 + shakeX;
+      camera.position.y = 52 + courierGroup.position.y;
       camera.position.z = courierGroup.position.z + 46 + shakeZ;
-      camera.lookAt(courierGroup.position.x, 0, courierGroup.position.z);
+      camera.lookAt(courierGroup.position.x, courierGroup.position.y, courierGroup.position.z);
 
       renderer.render(scene, camera);
     }
