@@ -1,0 +1,57 @@
+name: CI / Deployment Check
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  validate-frontend:
+    name: Validate Frontend Assets
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Verify Frontend Entry & Assets
+        run: |
+          test -f frontend/index.html || exit 1
+          test -f frontend/css/style.css || exit 1
+          test -f frontend/js/config.js || exit 1
+          echo "Frontend structure verified successfully."
+
+  validate-backend-node:
+    name: Test Node.js Backend Server
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Syntax & Lint Check Server
+        run: |
+          node --check backend/server.js
+          echo "Node.js server syntax check passed."
+
+  validate-backend-go:
+    name: Test Golang Backend Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.20'
+
+      - name: Build Go Server
+        working-directory: ./backend
+        run: |
+          go build -v -o bin/server cmd/server/main.go
+          echo "Go binary compiled successfully."

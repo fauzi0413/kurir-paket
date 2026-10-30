@@ -11,91 +11,11 @@
   <!-- Font Awesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-  <style>
-    * {
-      box-sizing: border-box;
-      user-select: none;
-      -webkit-user-select: none;
-      margin: 0;
-      padding: 0;
-    }
-    body {
-      background-color: #090d16;
-      color: #f1f5f9;
-      font-family: 'Inter', system-ui, -apple-system, sans-serif;
-      overflow: hidden;
-      width: 100vw;
-      height: 100vh;
-      touch-action: none;
-    }
-    canvas {
-      display: block;
-      width: 100vw;
-      height: 100vh;
-      outline: none;
-      touch-action: none;
-    }
-    .glass-card {
-      background: rgba(15, 23, 42, 0.88);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.55);
-    }
-    .neon-amber {
-      text-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
-    }
-    .progress-ring-circle {
-      transition: stroke-dashoffset 0.06s linear;
-      transform: rotate(-90deg);
-      transform-origin: 50% 50%;
-    }
-    .level-pill {
-      background: linear-gradient(135deg, #0284c7, #2563eb);
-    }
-    /* Custom Thin Scrollbar for Modals & Level Track */
-    .custom-scrollbar::-webkit-scrollbar {
-      width: 6px;
-    }
-    .custom-scrollbar::-webkit-scrollbar-track {
-      background: rgba(15, 23, 42, 0.6);
-      border-radius: 9999px;
-    }
-    .custom-scrollbar::-webkit-scrollbar-thumb {
-      background: rgba(6, 182, 212, 0.45);
-      border-radius: 9999px;
-    }
-    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-      background: rgba(6, 182, 212, 0.75);
-    }
+  <!-- Custom Game Styles -->
+  <link rel="stylesheet" href="css/style.css">
 
-    /* Map Grid Background Pattern */
-    .map-grid-bg {
-      background-color: rgba(9, 15, 29, 0.75);
-      background-image: 
-        radial-gradient(rgba(56, 189, 248, 0.12) 1px, transparent 1px),
-        linear-gradient(to right, rgba(30, 41, 59, 0.35) 1px, transparent 1px),
-        linear-gradient(to bottom, rgba(30, 41, 59, 0.35) 1px, transparent 1px);
-      background-size: 20px 20px, 40px 40px, 40px 40px;
-    }
-
-    @keyframes pulse-ring {
-      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(6, 182, 212, 0.7); }
-      70% { transform: scale(1); box-shadow: 0 0 0 12px rgba(6, 182, 212, 0); }
-      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(6, 182, 212, 0); }
-    }
-    .active-node-pulse {
-      animation: pulse-ring 2s infinite;
-    }
-
-    @keyframes float-truck {
-      0%, 100% { transform: translateY(0px); }
-      50% { transform: translateY(-4px); }
-    }
-    .truck-float {
-      animation: float-truck 2s ease-in-out infinite;
-    }
-  </style>
+  <!-- Client Environment Config -->
+  <script src="js/config.js"></script>
 </head>
 <body class="relative w-screen h-screen overflow-hidden text-slate-100">
 
@@ -336,17 +256,30 @@
           </div>
         </div>
 
-        <!-- Footer Legend & Jump to Active Button -->
-        <div class="pt-2.5 mt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400 shrink-0">
-          <div class="flex items-center gap-2.5">
+        <!-- Footer Control Bar (Di Luar Maps) -->
+        <div class="pt-3 mt-2 border-t border-slate-800/80 flex flex-col gap-2 shrink-0">
+          <!-- Dua Tombol Aksi Sejajar: Level Terakhir & Lokasi Kurir -->
+          <div class="grid grid-cols-2 gap-2">
+            <!-- Tombol Level Aktif Terakhir -->
+            <button id="btn-jump-latest-level" type="button" class="py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/35 hover:to-orange-500/35 text-amber-300 hover:text-amber-200 border border-amber-500/50 hover:border-amber-400 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-lg shadow-amber-950/40 active:scale-95" title="Lompat dan pilih level aktif terakhir yang sudah terbuka">
+              <i class="fa-solid fa-flag-checkered text-amber-400"></i>
+              <span class="whitespace-nowrap">Level Terakhir</span>
+              <span id="btn-latest-lvl-label" class="px-1.5 py-0.5 rounded-md bg-amber-500/30 text-amber-200 font-mono text-[10px] font-black">Lvl 1</span>
+            </button>
+
+            <!-- Tombol Lokasi Kurir -->
+            <button id="btn-center-track" type="button" class="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 hover:text-cyan-200 border border-cyan-500/40 hover:border-cyan-400 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-lg shadow-cyan-950/40 active:scale-95" title="Fokuskan tampilan ke posisi kurir saat ini">
+              <i class="fa-solid fa-location-crosshairs text-cyan-400"></i>
+              <span class="whitespace-nowrap">Lokasi Kurir</span>
+            </button>
+          </div>
+
+          <!-- Keterangan Legend Status -->
+          <div class="flex items-center justify-between px-1 text-[10px] text-slate-400">
             <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span> Selesai</span>
             <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-cyan-400 inline-block animate-ping"></span> Aktif</span>
             <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-slate-600 inline-block"></span> Terkunci</span>
           </div>
-          <button id="btn-center-track" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 font-bold text-[10px] flex items-center gap-1 transition-all cursor-pointer border border-cyan-500/30" title="Fokus ke level aktif">
-            <i class="fa-solid fa-location-crosshairs"></i>
-            <span>Lokasi Kurir</span>
-          </button>
         </div>
       </aside>
 
@@ -2114,6 +2047,9 @@
       const posEl = document.getElementById('track-active-pos');
       if (posEl) posEl.innerText = `Lvl ${activeLvl}`;
 
+      const latestLvlBtnLabel = document.getElementById('btn-latest-lvl-label');
+      if (latestLvlBtnLabel) latestLvlBtnLabel.innerText = `Lvl ${highestLvl}`;
+
       // Konfigurasi Geometri Winding Track (Dari Bawah = Level 1 ke Atas = Level Tinggi)
       const rowHeight = 86;
       const topPadding = 54;
@@ -2298,10 +2234,22 @@
       showToast(`🗺️ Distrik dipilih: Level ${lvlId} (${state.currentLevelConfig.title})`, 'success');
     };
 
+    // Tombol Utama: Menuju & Memilih Level Aktif Terakhir (Progres Tertinggi Pemain)
+    const btnJumpLatestLevel = document.getElementById('btn-jump-latest-level');
+    if (btnJumpLatestLevel) {
+      btnJumpLatestLevel.addEventListener('click', () => {
+        const latestLvl = Math.max(state.highestUnlockedLevel || 1, state.level || 1);
+        selectLevelFromTrack(latestLvl);
+        scrollToActiveTrackNode(latestLvl);
+        if (sound && sound.playBeep) sound.playBeep(750, 0.08, 'triangle', 0.15);
+      });
+    }
+
     const btnCenterTrack = document.getElementById('btn-center-track');
     if (btnCenterTrack) {
       btnCenterTrack.addEventListener('click', () => {
         scrollToActiveTrackNode(state.nextLevelToLoad || state.level || 1);
+        if (sound && sound.playBeep) sound.playBeep(600, 0.05, 'triangle', 0.08);
       });
     }
 
