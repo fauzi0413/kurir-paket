@@ -1,0 +1,13 @@
+{
+  "name": "kurir-paket-backend",
+  "version": "1.0.0",
+  "description": "Warehouse Express 3D Game Server (Spatial Road Graph, Anti-Duplicate Dispatcher & Player Sync)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": ["game-server", "threejs", "courier", "dispatcher"],
+  "author": "Fauzi",
+  "license": "MIT"
+}
